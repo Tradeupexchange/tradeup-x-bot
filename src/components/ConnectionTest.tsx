@@ -11,14 +11,30 @@ const ConnectionTest: React.FC = () => {
 
   useEffect(() => {
     const railwayUrl = import.meta.env.VITE_RAILWAY_API_URL;
-    setApiUrl(railwayUrl || 'Not set');
+    const normalizedUrl = railwayUrl ? normalizeUrl(railwayUrl) : 'Not set';
+    setApiUrl(normalizedUrl);
     testConnection();
   }, []);
 
+  const normalizeUrl = (url: string): string => {
+    // Remove any trailing slashes
+    url = url.replace(/\/+$/, '');
+    
+    // Add https:// if no protocol specified
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`;
+    }
+    
+    return url;
+  };
+
   const testRailwayHealth = async (baseUrl: string) => {
     try {
+      const normalizedUrl = normalizeUrl(baseUrl);
+      console.log('Testing normalized URL:', normalizedUrl);
+      
       // Test basic connectivity first
-      const response = await fetch(baseUrl, {
+      const response = await fetch(normalizedUrl, {
         method: 'GET',
         mode: 'no-cors', // Try without CORS first to see if server is responding
       });
@@ -46,10 +62,11 @@ const ConnectionTest: React.FC = () => {
         throw new Error('VITE_RAILWAY_API_URL environment variable not set. Please check your Netlify environment variables.');
       }
 
-      console.log('🔧 Testing connection to:', railwayUrl);
+      const normalizedUrl = normalizeUrl(railwayUrl);
+      console.log('🔧 Testing connection to normalized URL:', normalizedUrl);
 
       // First, test if Railway server is responding at all
-      const isServerHealthy = await testRailwayHealth(railwayUrl);
+      const isServerHealthy = await testRailwayHealth(normalizedUrl);
       
       if (!isServerHealthy) {
         throw new Error('Railway server appears to be down or unreachable');
@@ -68,7 +85,7 @@ const ConnectionTest: React.FC = () => {
 
       for (const test of tests) {
         try {
-          const url = `${railwayUrl}${test.endpoint}`;
+          const url = `${normalizedUrl}${test.endpoint}`;
           console.log(`🧪 Testing ${test.name}:`, url);
           
           // Try with CORS first
@@ -143,7 +160,7 @@ const ConnectionTest: React.FC = () => {
             status: 'error',
             statusCode: 0,
             data: err instanceof Error ? err.message : 'Network error',
-            url: `${railwayUrl}${test.endpoint}`,
+            url: `${normalizedUrl}${test.endpoint}`,
             critical: test.critical,
             corsIssue: false
           });
@@ -211,7 +228,7 @@ const ConnectionTest: React.FC = () => {
                 className="flex items-center space-x-1 px-3 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 text-sm"
               >
                 <Server className="h-3 w-3" />
-                <span>Direct</span>
+                <span>Direct Test</span>
               </a>
             </>
           )}
@@ -360,8 +377,9 @@ const ConnectionTest: React.FC = () => {
               <div className="grid grid-cols-2 gap-2 mt-1">
                 <div>Environment: {import.meta.env.MODE}</div>
                 <div>Dev Mode: {import.meta.env.DEV ? 'Yes' : 'No'}</div>
-                <div>API URL Set: {import.meta.env.VITE_RAILWAY_API_URL ? 'Yes' : 'No'}</div>
-                <div>Origin: {window.location.origin}</div>
+                <div>Raw URL: {import.meta.env.VITE_RAILWAY_API_URL || 'Not set'}</div>
+                <div>Normalized URL: {apiUrl}</div>
+                <div>Expected Format: https://your-app.up.railway.app</div>
                 <div>Railway Status: {railwayStatus}</div>
                 <div>CORS Issues: {corsIssues ? 'Yes' : 'No'}</div>
               </div>
