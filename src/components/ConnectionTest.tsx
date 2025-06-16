@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle, RefreshCw, ExternalLink, Info, Globe } from 'lucide-react';
+import { AlertCircle, CheckCircle, RefreshCw, ExternalLink, Info, Globe, AlertTriangle, Server } from 'lucide-react';
 
 const ConnectionTest: React.FC = () => {
   const [status, setStatus] = useState<'testing' | 'connected' | 'error'>('testing');
   const [error, setError] = useState<string | null>(null);
   const [apiUrl, setApiUrl] = useState<string>('');
   const [testResults, setTestResults] = useState<any[]>([]);
+  const [railwayStatus, setRailwayStatus] = useState<'unknown' | 'healthy' | 'unhealthy'>('unknown');
+  const [corsIssues, setCorsIssues] = useState<boolean>(false);
 
   useEffect(() => {
     const railwayUrl = import.meta.env.VITE_RAILWAY_API_URL;
@@ -13,68 +15,126 @@ const ConnectionTest: React.FC = () => {
     testConnection();
   }, []);
 
+  const testRailwayHealth = async (baseUrl: string) => {
+    try {
+      // Test basic connectivity first
+      const response = await fetch(baseUrl, {
+        method: 'GET',
+        mode: 'no-cors', // Try without CORS first to see if server is responding
+      });
+      
+      // If no-cors works, server is up but may have CORS issues
+      setRailwayStatus('healthy');
+      return true;
+    } catch (err) {
+      console.error('Railway health check failed:', err);
+      setRailwayStatus('unhealthy');
+      return false;
+    }
+  };
+
   const testConnection = async () => {
     setStatus('testing');
     setError(null);
     setTestResults([]);
+    setCorsIssues(false);
 
     try {
       const railwayUrl = import.meta.env.VITE_RAILWAY_API_URL;
       
       if (!railwayUrl) {
-        throw new Error('VITE_RAILWAY_API_URL environment variable not set');
+        throw new Error('VITE_RAILWAY_API_URL environment variable not set. Please check your Netlify environment variables.');
       }
 
       console.log('🔧 Testing connection to:', railwayUrl);
 
+      // First, test if Railway server is responding at all
+      const isServerHealthy = await testRailwayHealth(railwayUrl);
+      
+      if (!isServerHealthy) {
+        throw new Error('Railway server appears to be down or unreachable');
+      }
+
       const tests = [
-        { name: 'Health Check', endpoint: '/health' },
-        { name: 'Root Endpoint', endpoint: '/' },
-        { name: 'Bot Status', endpoint: '/api/bot-status' },
-        { name: 'Metrics', endpoint: '/api/metrics' },
-        { name: 'Settings', endpoint: '/api/settings' }
+        { name: 'Health Check', endpoint: '/health', critical: true },
+        { name: 'Root Endpoint', endpoint: '/', critical: true },
+        { name: 'Bot Status', endpoint: '/api/bot-status', critical: false },
+        { name: 'Metrics', endpoint: '/api/metrics', critical: false },
+        { name: 'Settings', endpoint: '/api/settings', critical: false }
       ];
 
       const results = [];
+      let corsDetected = false;
 
       for (const test of tests) {
         try {
           const url = `${railwayUrl}${test.endpoint}`;
           console.log(`🧪 Testing ${test.name}:`, url);
           
-          const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-            },
-            mode: 'cors',
-            credentials: 'omit',
-          });
+          // Try with CORS first
+          let response;
+          let corsError = false;
+          
+          try {
+            response = await fetch(url, {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+              },
+              mode: 'cors',
+              credentials: 'omit',
+            });
+          } catch (corsErr) {
+            console.warn(`CORS error for ${test.name}:`, corsErr);
+            corsError = true;
+            corsDetected = true;
+            
+            // Try with no-cors as fallback
+            try {
+              response = await fetch(url, {
+                method: 'GET',
+                mode: 'no-cors',
+              });
+            } catch (noCorsErr) {
+              throw noCorsErr;
+            }
+          }
 
           console.log(`📡 ${test.name} response:`, {
             status: response.status,
             ok: response.ok,
+            type: response.type,
             headers: Object.fromEntries(response.headers.entries())
           });
 
-          let data;
-          try {
-            data = await response.json();
-          } catch (jsonError) {
-            data = await response.text();
+          let data = 'Response received';
+          
+          // Only try to parse JSON if we have CORS access
+          if (response.type !== 'opaque') {
+            try {
+              if (response.headers.get('content-type')?.includes('application/json')) {
+                data = await response.json();
+              } else {
+                data = await response.text();
+              }
+            } catch (parseError) {
+              data = 'Could not parse response';
+            }
           }
           
           results.push({
             name: test.name,
             endpoint: test.endpoint,
-            status: response.ok ? 'success' : 'error',
-            statusCode: response.status,
-            data: response.ok ? 'OK' : (data?.detail || data || 'Error'),
-            url: url
+            status: response.ok || response.type === 'opaque' ? 'success' : 'error',
+            statusCode: response.status || (response.type === 'opaque' ? 'CORS-blocked' : 0),
+            data: response.ok ? 'OK' : (corsError ? 'CORS issue detected' : (typeof data === 'string' ? data : JSON.stringify(data))),
+            url: url,
+            critical: test.critical,
+            corsIssue: corsError
           });
 
-          console.log(`${response.ok ? '✅' : '❌'} ${test.name}:`, response.status, data);
+          console.log(`${response.ok || response.type === 'opaque' ? '✅' : '❌'} ${test.name}:`, response.status, corsError ? 'CORS blocked' : 'OK');
         } catch (err) {
           console.error(`❌ ${test.name} failed:`, err);
           results.push({
@@ -83,23 +143,30 @@ const ConnectionTest: React.FC = () => {
             status: 'error',
             statusCode: 0,
             data: err instanceof Error ? err.message : 'Network error',
-            url: `${railwayUrl}${test.endpoint}`
+            url: `${railwayUrl}${test.endpoint}`,
+            critical: test.critical,
+            corsIssue: false
           });
         }
       }
 
       setTestResults(results);
+      setCorsIssues(corsDetected);
 
       // Check if all critical tests passed
-      const criticalTests = results.filter(r => ['Health Check', 'Root Endpoint'].includes(r.name));
+      const criticalTests = results.filter(r => r.critical);
       const allCriticalPassed = criticalTests.every(r => r.status === 'success');
 
       if (allCriticalPassed) {
         setStatus('connected');
         console.log('✅ All critical tests passed - connection successful');
+        if (corsDetected) {
+          setError('Connection successful but CORS issues detected. Some endpoints may not work properly in production.');
+        }
       } else {
         setStatus('error');
-        setError('Some critical endpoints failed');
+        const failedCritical = criticalTests.filter(r => r.status === 'error');
+        setError(`Critical endpoints failed: ${failedCritical.map(r => r.name).join(', ')}`);
         console.error('❌ Critical tests failed');
       }
 
@@ -110,23 +177,44 @@ const ConnectionTest: React.FC = () => {
     }
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'success': return 'bg-green-100 text-green-800';
+      case 'error': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-2">
           <Globe className="h-5 w-5 text-blue-600" />
-          <h3 className="text-lg font-semibold text-gray-900">Backend Connection Status</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Railway Backend Connection</h3>
         </div>
         <div className="flex items-center space-x-2">
-          <a
-            href={`${apiUrl}/docs`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center space-x-1 px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm"
-          >
-            <ExternalLink className="h-3 w-3" />
-            <span>API Docs</span>
-          </a>
+          {apiUrl && apiUrl !== 'Not set' && (
+            <>
+              <a
+                href={`${apiUrl}/docs`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center space-x-1 px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm"
+              >
+                <ExternalLink className="h-3 w-3" />
+                <span>API Docs</span>
+              </a>
+              <a
+                href={apiUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center space-x-1 px-3 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 text-sm"
+              >
+                <Server className="h-3 w-3" />
+                <span>Direct</span>
+              </a>
+            </>
+          )}
           <button
             onClick={testConnection}
             disabled={status === 'testing'}
@@ -141,9 +229,30 @@ const ConnectionTest: React.FC = () => {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-600">Railway URL:</span>
-          <span className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
+          <span className="text-sm font-mono bg-gray-100 px-2 py-1 rounded break-all">
             {apiUrl}
           </span>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Server Status:</span>
+          <div className="flex items-center space-x-2">
+            {railwayStatus === 'healthy' && (
+              <>
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <span className="text-sm text-green-600">Responding</span>
+              </>
+            )}
+            {railwayStatus === 'unhealthy' && (
+              <>
+                <AlertCircle className="h-4 w-4 text-red-500" />
+                <span className="text-sm text-red-600">Not Responding</span>
+              </>
+            )}
+            {railwayStatus === 'unknown' && (
+              <span className="text-sm text-gray-600">Unknown</span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center space-x-2">
@@ -157,6 +266,12 @@ const ConnectionTest: React.FC = () => {
             <>
               <CheckCircle className="h-5 w-5 text-green-500" />
               <span className="text-green-600">Connected successfully!</span>
+              {corsIssues && (
+                <div className="flex items-center space-x-1">
+                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                  <span className="text-yellow-600 text-sm">CORS issues detected</span>
+                </div>
+              )}
             </>
           )}
           {status === 'error' && (
@@ -172,9 +287,11 @@ const ConnectionTest: React.FC = () => {
             <h4 className="text-sm font-medium text-gray-700 mb-2">Endpoint Tests:</h4>
             <div className="space-y-2">
               {testResults.map((result, index) => (
-                <div key={index} className="flex items-center justify-between text-sm">
+                <div key={index} className="flex items-center justify-between text-sm p-2 bg-gray-50 rounded">
                   <div className="flex items-center space-x-2">
-                    <span className="text-gray-600">{result.name}</span>
+                    <span className={`text-gray-600 ${result.critical ? 'font-medium' : ''}`}>
+                      {result.name} {result.critical && '(Critical)'}
+                    </span>
                     <a
                       href={result.url}
                       target="_blank"
@@ -185,15 +302,11 @@ const ConnectionTest: React.FC = () => {
                     </a>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className="font-mono text-xs bg-gray-100 px-1 rounded">
+                    <span className="font-mono text-xs bg-white px-1 rounded">
                       {result.endpoint}
                     </span>
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      result.status === 'success' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {result.statusCode} {result.status}
+                    <span className={`px-2 py-1 rounded text-xs ${getStatusColor(result.status)}`}>
+                      {result.statusCode} {result.corsIssue && '(CORS)'}
                     </span>
                   </div>
                 </div>
@@ -208,16 +321,33 @@ const ConnectionTest: React.FC = () => {
               <strong>Error:</strong> {error}
             </p>
             <div className="mt-2 text-xs text-red-600">
-              <p><strong>Troubleshooting:</strong></p>
-              <ul className="list-disc list-inside mt-1 space-y-1">
-                <li>Check if Railway backend is deployed and running</li>
-                <li>Verify VITE_RAILWAY_API_URL is set correctly in Netlify</li>
-                <li>Ensure Railway app is publicly accessible</li>
-                <li>Check Railway logs for any startup errors</li>
-                <li>Visit the API docs link above to test endpoints manually</li>
-                <li>Check browser console for CORS errors</li>
-                <li>Try accessing the Railway URL directly in a new tab</li>
-              </ul>
+              <p><strong>Troubleshooting Steps:</strong></p>
+              <ol className="list-decimal list-inside mt-1 space-y-1">
+                <li>Click "Direct" button above to test Railway app directly in browser</li>
+                <li>Check Railway deployment logs for startup errors</li>
+                <li>Verify your backend server is configured to accept CORS requests</li>
+                <li>Ensure Railway app has proper PORT environment variable set</li>
+                <li>Check if Railway service is sleeping (hobby plan limitation)</li>
+                <li>Verify all environment variables are set in Railway dashboard</li>
+                <li>Test API endpoints manually using the "API Docs" link</li>
+              </ol>
+            </div>
+          </div>
+        )}
+
+        {corsIssues && (
+          <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-start space-x-2">
+              <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5" />
+              <div className="text-xs text-yellow-700">
+                <p><strong>CORS Issues Detected:</strong></p>
+                <p>Your backend server needs to be configured to allow cross-origin requests. Add these headers to your Railway backend:</p>
+                <div className="mt-2 p-2 bg-yellow-100 rounded font-mono text-xs">
+                  Access-Control-Allow-Origin: {window.location.origin}<br/>
+                  Access-Control-Allow-Methods: GET, POST, PUT, DELETE<br/>
+                  Access-Control-Allow-Headers: Content-Type, Authorization
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -226,12 +356,15 @@ const ConnectionTest: React.FC = () => {
           <div className="flex items-start space-x-2">
             <Info className="h-4 w-4 text-blue-600 mt-0.5" />
             <div className="text-xs text-blue-700">
-              <p><strong>Debug Info:</strong></p>
-              <p>Environment: {import.meta.env.MODE}</p>
-              <p>Dev Mode: {import.meta.env.DEV ? 'Yes' : 'No'}</p>
-              <p>API URL Set: {import.meta.env.VITE_RAILWAY_API_URL ? 'Yes' : 'No'}</p>
-              <p>CORS Mode: cors</p>
-              <p>Credentials: omit</p>
+              <p><strong>Debug Information:</strong></p>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <div>Environment: {import.meta.env.MODE}</div>
+                <div>Dev Mode: {import.meta.env.DEV ? 'Yes' : 'No'}</div>
+                <div>API URL Set: {import.meta.env.VITE_RAILWAY_API_URL ? 'Yes' : 'No'}</div>
+                <div>Origin: {window.location.origin}</div>
+                <div>Railway Status: {railwayStatus}</div>
+                <div>CORS Issues: {corsIssues ? 'Yes' : 'No'}</div>
+              </div>
             </div>
           </div>
         </div>
