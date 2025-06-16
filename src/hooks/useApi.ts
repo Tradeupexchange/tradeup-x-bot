@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 
-// Use Railway backend URL for API calls
+// Use Railway backend URL for API calls - REMOVED /api from here
 const API_BASE_URL =
-  import.meta.env.VITE_RAILWAY_API_URL + "/api" ||
-  (import.meta.env.DEV ? 'http://localhost:8000/api' : undefined);
+  import.meta.env.VITE_RAILWAY_API_URL ||
+  (import.meta.env.DEV ? 'http://localhost:8000' : undefined);
 
 if (!API_BASE_URL) {
   throw new Error('Missing VITE_RAILWAY_API_URL in production build!');
