@@ -1,13 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
 
-// Use Railway backend URL for API calls - REMOVED /api from here
-const API_BASE_URL =
-  import.meta.env.VITE_RAILWAY_API_URL ||
-  (import.meta.env.DEV ? 'http://localhost:8000' : undefined);
+// Debug environment variables
+console.log('🔍 DEBUG - Environment variables:');
+console.log('- import.meta.env.VITE_RAILWAY_API_URL:', import.meta.env.VITE_RAILWAY_API_URL);
+console.log('- import.meta.env.DEV:', import.meta.env.DEV);
+console.log('- import.meta.env.PROD:', import.meta.env.PROD);
+console.log('- import.meta.env.MODE:', import.meta.env.MODE);
+console.log('- All env vars:', import.meta.env);
 
-if (!API_BASE_URL) {
-  throw new Error('Missing VITE_RAILWAY_API_URL in production build!');
-}
+// Use Railway backend URL for API calls
+const API_BASE_URL = 
+  import.meta.env.VITE_RAILWAY_API_URL ||
+  (import.meta.env.DEV ? 'http://localhost:8000' : 'https://fallback-url.railway.app');
+
+console.log('🎯 Final API_BASE_URL:', API_BASE_URL);
 
 interface ApiResponse<T> {
   data: T | null;
@@ -26,12 +32,18 @@ export const useApi = <T>(endpoint: string, options?: RequestInit): ApiResponse<
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const fullUrl = `${API_BASE_URL}${endpoint}`;
+      console.log('🌐 Making request to:', fullUrl);
+      
+      const response = await fetch(fullUrl, {
         headers: {
           'Content-Type': 'application/json',
         },
         ...options,
       });
+
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response ok:', response.ok);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -40,6 +52,7 @@ export const useApi = <T>(endpoint: string, options?: RequestInit): ApiResponse<
       const result = await response.json();
       setData(result);
     } catch (err) {
+      console.error('❌ API Error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
@@ -54,15 +67,23 @@ export const useApi = <T>(endpoint: string, options?: RequestInit): ApiResponse<
 };
 
 export const apiCall = async <T>(endpoint: string, options?: RequestInit): Promise<T> => {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const fullUrl = `${API_BASE_URL}${endpoint}`;
+  console.log('🚀 apiCall to:', fullUrl);
+  
+  const response = await fetch(fullUrl, {
     headers: {
       'Content-Type': 'application/json',
     },
     ...options,
   });
 
+  console.log('📡 apiCall response status:', response.status);
+  console.log('📡 apiCall response ok:', response.ok);
+
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    const errorText = await response.text();
+    console.error('❌ apiCall error response:', errorText);
+    throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
   }
 
   return response.json();
