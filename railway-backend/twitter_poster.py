@@ -11,6 +11,13 @@ import tweepy
 
 from config import TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET
 
+# Add this right before creating the Tweepy client in your twitter_poster.py
+print(f"Creating client with:")
+print(f"Consumer key starts with: {TWITTER_API_KEY[:10] if TWITTER_API_KEY else 'None'}...")
+print(f"Consumer secret starts with: {TWITTER_API_SECRET[:10] if TWITTER_API_SECRET else 'None'}...")
+print(f"Access token starts with: {TWITTER_ACCESS_TOKEN[:10] if TWITTER_ACCESS_TOKEN else 'None'}...")
+print(f"Access secret starts with: {TWITTER_ACCESS_SECRET[:10] if TWITTER_ACCESS_SECRET else 'None'}...")
+
 def post_original_tweet(content: str) -> Dict[str, Any]:
     """
     Post an original tweet to the TradeUp X account.
@@ -44,7 +51,29 @@ def post_original_tweet(content: str) -> Dict[str, Any]:
             access_token_secret=TWITTER_ACCESS_SECRET
         )
         
-        # Post the tweet
+        # TEST AUTHENTICATION FIRST - before trying to post
+        print("Testing authentication...")
+        try:
+            me = client.get_me()
+            print(f"✅ Auth successful: @{me.data.username}")
+            print(f"Account ID: {me.data.id}")
+        except tweepy.Unauthorized as auth_error:
+            print(f"❌ 401 Unauthorized during auth test: {auth_error}")
+            return {
+                'success': False,
+                'error': f'Authentication failed: {auth_error}',
+                'tweet_id': None
+            }
+        except Exception as auth_error:
+            print(f"❌ Other auth error: {auth_error}")
+            return {
+                'success': False,
+                'error': f'Authentication error: {auth_error}',
+                'tweet_id': None
+            }
+        
+        # If we get here, auth worked - now try to post
+        print("Authentication successful, attempting to post tweet...")
         response = client.create_tweet(text=content)
         
         # Check if tweet was created successfully
@@ -91,3 +120,6 @@ def get_tweet_url(tweet_id: str) -> str:
     # We don't know the exact username from the API response,
     # but we can use the TradeUp account name since we're posting from it
     return f"https://x.com/TradeUpApp/status/{tweet_id}"
+
+
+post_original_tweet('testing')

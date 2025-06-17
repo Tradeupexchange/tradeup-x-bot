@@ -15,11 +15,16 @@ TWITTER_API_SECRET = os.getenv('TWITTER_API_SECRET', '')
 TWITTER_ACCESS_TOKEN = os.getenv('TWITTER_ACCESS_TOKEN', '')
 TWITTER_ACCESS_SECRET = os.getenv('TWITTER_ACCESS_SECRET', '')
 
+print(f"API Key: {os.getenv('TWITTER_API_KEY')}")
+print(f"API Secret: {os.getenv('TWITTER_API_SECRET')}")  
+print(f"Access Token: {os.getenv('TWITTER_ACCESS_TOKEN')}")
+print(f"Access Secret: {os.getenv('TWITTER_ACCESS_SECRET')}")
+
 # LLM API Keys
 LLM_API_KEY = os.getenv('OPENAI_API_KEY', '')  # Default to OpenAI API key
-GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
+
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
-FIREWORKS_API_KEY = os.getenv('FIREWORKS_API_KEY', '')
+
 LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'openai')  # Default to OpenAI
 
 # Directory paths
