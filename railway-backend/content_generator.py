@@ -12,7 +12,7 @@ from datetime import datetime
 import time
 import hashlib
 
-from config import OPENAI_API_KEY, GROQ_API_KEY, LLM_PROVIDER, POKEMON_KEYWORDS
+from config import OPENAI_API_KEY, LLM_PROVIDER, POKEMON_KEYWORDS
 from knowledge_manager import generate_expert_knowledge_prompt, update_knowledge_base_from_csv, update_knowledge_base_from_web, add_memory
 
 # Content types for variety
@@ -255,27 +255,6 @@ def call_openai_api(prompt: str) -> str:
     response.raise_for_status()
     return response.json()["choices"][0]["message"]["content"]
 
-def call_groq_api(prompt: str) -> str:
-    """Call the Groq API to generate viral content."""
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    data = {
-        "model": "llama3-8b-8192",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.9,  # Higher temperature for more variety
-        "max_tokens": 2000
-    }
-    
-    time.sleep(1)  # Rate limiting
-    
-    response = requests.post(url, headers=headers, data=json.dumps(data))
-    response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"]
 
 def parse_llm_response(response: str, expected_count: int) -> List[Dict[str, Any]]:
     """Parse the LLM response to extract viral content posts."""

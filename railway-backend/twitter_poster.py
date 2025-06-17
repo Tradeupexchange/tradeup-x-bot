@@ -120,6 +120,3 @@ def get_tweet_url(tweet_id: str) -> str:
     # We don't know the exact username from the API response,
     # but we can use the TradeUp account name since we're posting from it
     return f"https://x.com/TradeUpApp/status/{tweet_id}"
-
-
-post_original_tweet('testing')
