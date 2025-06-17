@@ -540,6 +540,14 @@ async def update_settings(settings: dict):
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         }
+    
+@app.route('/debug-twitter-config')  # adjust based on your framework
+def debug_twitter_config():
+    return {
+        'api_key_prefix': os.getenv('TWITTER_API_KEY', 'NOT_FOUND')[:10] + '...',
+        'access_token_prefix': os.getenv('TWITTER_ACCESS_TOKEN', 'NOT_FOUND')[:15] + '...',
+        'all_vars_present': bool(os.getenv('TWITTER_API_KEY') and os.getenv('TWITTER_ACCESS_TOKEN'))
+    }
 
 # Railway requires this exact pattern
 if __name__ == "__main__":
