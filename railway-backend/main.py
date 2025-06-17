@@ -541,7 +541,7 @@ async def update_settings(settings: dict):
             "timestamp": datetime.now().isoformat()
         }
     
-@app.route('/debug-twitter-config')  # adjust based on your framework
+@app.get('/debug-twitter-config')
 def debug_twitter_config():
     return {
         'api_key_prefix': os.getenv('TWITTER_API_KEY', 'NOT_FOUND')[:10] + '...',
