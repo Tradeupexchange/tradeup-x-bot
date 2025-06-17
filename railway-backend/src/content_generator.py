@@ -230,7 +230,9 @@ def generate_viral_content(manual_topic=None, count=5):
 
     try:
         print(f"Generating {count} posts with topic: {manual_topic}")
-        print(f"Using feedback learning: {len(best_examples)} examples, {learning_summary.count('DO') + learning_summary.count('DON'T')} learning points")
+        do_count = learning_summary.count('DO')
+        dont_count = learning_summary.count("DON'T")
+        print(f"Using feedback learning: {len(best_examples)} examples, {do_count + dont_count} learning points")
         
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Or "gpt-4" for higher quality
