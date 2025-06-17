@@ -427,7 +427,7 @@ if __name__ == "__main__":
         print()
     
     print("Generating content with feedback learning...")
-    posts = generate_viral_content(manual_topic=args.topic, count=args.count)
+    posts = generate_viral_content_main(manual_topic=args.topic, count=args.count)
     
     print(f"\nGenerated {len(posts)} posts:")
     for i, post in enumerate(posts):
