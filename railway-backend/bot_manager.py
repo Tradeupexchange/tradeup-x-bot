@@ -17,7 +17,7 @@ from pathlib import Path
 
 # Fixed imports for Railway deployment
 try:
-    from src.content_generator import main as generate_content_main
+    from src.content_generator import generate_viral_content_main as generate_content_main
     from src.twitter_poster import post_original_tweet, get_tweet_url
     from src.llm_manager import llm_manager
     print("✅ Successfully imported content generation modules")
