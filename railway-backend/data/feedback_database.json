@@ -1,0 +1,590 @@
+{
+  "metadata": {
+    "created_at": "2025-06-12T16:12:23.339372",
+    "last_updated": "2025-06-13T12:44:05.942189",
+    "version": "1.0"
+  },
+  "feedback_entries": [
+    {
+      "id": "feedback_1_20250612161223",
+      "timestamp": "2025-06-12T16:12:23.339472",
+      "post_content": "Just pulled a shiny Charizard! My binder love is real right now \ud83d\udd25",
+      "feedback": "Great post, very engaging and authentic",
+      "rating": 5,
+      "metadata": {
+        "hashtags": 0,
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_2_20250612161223",
+      "timestamp": "2025-06-12T16:12:23.339943",
+      "post_content": "PSA 10 Pikachu prices keep climbing! Anyone else watching the market? #Pokemon #TCGCollector \ud83e\udd29",
+      "feedback": "Too many hashtags, sounds spammy",
+      "rating": 2,
+      "metadata": {
+        "hashtags": 2,
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_3_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.912975",
+      "post_content": "Just pulled a Charizard VMAX Rainbow Rare! My hands are still shaking \ud83d\udd25 #PokemonTCG",
+      "feedback": "This does not make much sense because no one knows which charizard VMAX it is, and no one says rainbow rare they just say rainbow. You should include which set it was from for example: Just pulled the Rainbow Charizard VMAX from Champion's path!",
+      "rating": 2,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_4_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.913493",
+      "post_content": "Anyone else think the Scarlet & Violet era has the best Alt Arts so far? That Mew card is pure art \ud83d\ude0d",
+      "feedback": "This is great. I would just say that people don't say 'the scarlet & Violet era' they just say 'Scarlet & Violet era'",
+      "rating": 2,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_5_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.914357",
+      "post_content": "PSA 10 vintage WOTC holos are climbing again! Might be time to check your binders \ud83e\udd29 #Pokemon #TCGFinance",
+      "feedback": "THIS IS PERFECT! Great job and great use of the acronym WOTC",
+      "rating": 5,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_6_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.915040",
+      "post_content": "Hot take: Japanese card quality > English card quality. The centering and print lines don't lie \ud83d\ude09",
+      "feedback": "perfect",
+      "rating": 5,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_7_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.915740",
+      "post_content": "Finally completed my Eeveelution Alt Art collection! Which one's your favorite? \ud83d\udc09",
+      "feedback": "perfect",
+      "rating": 5,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_8_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.916375",
+      "post_content": "Mail day! Got that Umbreon VMAX Alt Art I've been chasing for months. Worth every penny \u26a1\ufe0f #ChaseCard",
+      "feedback": "Would reference which set it is from as well so people know. The Umbreon VMAX Alt Art from Evolving Skies. Also, the umbreon vmax is known as Moonbreon in the pokemon world",
+      "rating": 3,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_9_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.917055",
+      "post_content": "Pop reports for Charizard Base Set are showing fewer PSA 10s than expected. Market might adjust soon \ud83d\udd25",
+      "feedback": "We typically say Base Set Charizard not Charizard base set. The rest is on point",
+      "rating": 2,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_10_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.919084",
+      "post_content": "What's your unpopular Pok\u00e9mon TCG opinion? Mine: modern sets are better than vintage for actual gameplay \ud83d\ude0d",
+      "feedback": "This is great.",
+      "rating": 5,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_11_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.919697",
+      "post_content": "Reminder: always check card condition before trading! Just saved myself from a bad deal on a damaged Lugia \ud83e\udd29",
+      "feedback": "This would be a great place to promote TradeUp in a unique way. Always check your card conditions before trading! Just saved myself from a damaged lugia that was up on TradeUp. It might sound counter-intuitive but brining it up colloquially is the best way of promoting.",
+      "rating": 5,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_12_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.920371",
+      "post_content": "The new Pok\u00e9mon TCG Pocket app is surprisingly addictive. Anyone else opening digital packs like crazy? \ud83d\ude09",
+      "feedback": "Perfect",
+      "rating": 5,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_13_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.921030",
+      "post_content": "Congrats on those PSA returns! 3 tens is incredible - what cards made the cut? \ud83d\udd25 #GradedGems",
+      "feedback": "Perfect. You can also bring up controversial takes like 'Do you think you woulda gotten the same with CGC or BGS",
+      "rating": 5,
+      "metadata": {
+        "post_type": "reply",
+        "tradeup_mention": false,
+        "original_tweet": "Just got my first PSA returns back! 3 tens and 2 nines!"
+      }
+    },
+    {
+      "id": "feedback_14_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.921708",
+      "post_content": "That's actually pretty fair for a Charizard VMAX Rainbow in today's market! Check the centering before pulling the trigger though \ud83d\ude09",
+      "feedback": "We typically say Rainbow Charizard not Charizard Rainbow and we do not include 'rare' at the end. The rest is perfect",
+      "rating": 2,
+      "metadata": {
+        "post_type": "reply",
+        "tradeup_mention": false,
+        "original_tweet": "Is $200 a good price for Charizard VMAX Rainbow Rare?"
+      }
+    },
+    {
+      "id": "feedback_15_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.922439",
+      "post_content": "Evolving Skies at $150 is decent considering the Eeveelution Alt Arts inside! Just know the pull rates can be brutal \ud83e\udd29 #HighRiskHighReward",
+      "feedback": "DO NOT include hashtags when replying to tweets. This would be a hard one because the evolving skies set is at over $1800 now, so commenting the wrong thing about price can trigger a lack of understanding on our side. If you have data on the prices from TCG player in real time, you can check and see that this would be a steal and it might mean it's too good to be true. The comment about pull rates is great.",
+      "rating": 2,
+      "metadata": {
+        "post_type": "reply",
+        "tradeup_mention": false,
+        "original_tweet": "My local card shop is charging $150 for Evolving Skies booster boxes. Worth it?"
+      }
+    },
+    {
+      "id": "feedback_16_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.923164",
+      "post_content": "Both have their charm! Vintage for nostalgia and investment, modern for amazing artwork and playability. Why not start with what excites you most? \ud83d\ude0d",
+      "feedback": "Perfect. There's a big divide between collectors and investors and players and this is good to highlight those differences.",
+      "rating": 5,
+      "metadata": {
+        "post_type": "reply",
+        "tradeup_mention": false,
+        "original_tweet": "I can't decide between collecting modern or vintage cards. Help!"
+      }
+    },
+    {
+      "id": "feedback_17_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.923911",
+      "post_content": "Old 1999 cards could be treasure! Check for holos, starters, and Charizards first. Only grade if they're near mint or better \ud83d\udd25",
+      "feedback": "'old 1999 cards' is not a term we typically use, would rather you say 'Vintage cards could be gold if they're in the right condition'",
+      "rating": 2,
+      "metadata": {
+        "post_type": "reply",
+        "tradeup_mention": false,
+        "original_tweet": "Just found my old collection from 1999! Should I grade them?"
+      }
+    },
+    {
+      "id": "feedback_18_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.924718",
+      "post_content": "Pro tip: sleeve your cards BEFORE putting them in top loaders. Prevents scratches and keeps them pristine \u26a1\ufe0f",
+      "feedback": "Perfect",
+      "rating": 5,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_19_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.925551",
+      "post_content": "Controversial opinion: Pikachu isn't even in my top 5 Pok\u00e9mon to collect. Gengar gang rise up! \ud83d\udc09 #GhostTypes",
+      "feedback": "PERFECT",
+      "rating": 5,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_20_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.926687",
+      "post_content": "The Japanese exclusive promos are getting ridiculous. That new Pikachu illustration is pure gold \ud83d\udd25",
+      "feedback": "Vague but good",
+      "rating": 2,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_21_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.927725",
+      "post_content": "Anyone else organize their binder by set number instead of Pok\u00e9mon type? Feels so satisfying when complete \ud83d\ude0d",
+      "feedback": "Perfect but this can be made even better. Instead of ending it there, you can say something like 'how do you organize your pokemon binders?",
+      "rating": 5,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_22_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.928833",
+      "post_content": "Just hit 500 unique Eevee cards in my collection! The obsession is real \ud83e\udd29 #EeveeCollector",
+      "feedback": "This is a good place to promote tradeup as well. Just got my 500th Eevee card! Almost half of them came from trades on tradeup! THe obsession is real! etc..",
+      "rating": 5,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_23_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.929880",
+      "post_content": "Market's definitely cooled since 2021, but true collectors are still here. Focus on cards you love, not just hype investments \ud83d\ude09",
+      "feedback": "Perfect, you might even pull from recent data showing that people are attemtping to scalp the newest sets if you can.",
+      "rating": 5,
+      "metadata": {
+        "post_type": "reply",
+        "tradeup_mention": false,
+        "original_tweet": "Do you think Pok\u00e9mon cards are in a bubble right now?"
+      }
+    },
+    {
+      "id": "feedback_24_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.931040",
+      "post_content": "Perfect fit sleeve \u2192 top loader \u2192 team bag, stored upright in a cool, dry place away from sunlight. Your future self will thank you! \ud83d\udd25",
+      "feedback": "Perfect",
+      "rating": 5,
+      "metadata": {
+        "post_type": "reply",
+        "tradeup_mention": false,
+        "original_tweet": "What's the best way to store valuable cards?"
+      }
+    },
+    {
+      "id": "feedback_25_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.932289",
+      "post_content": "That Mewtwo Alt Art is gorgeous! If you love it, hold it - Alt Arts tend to climb over time. If you need cash, sell while it's hot \ud83e\udd29",
+      "feedback": "Just saying 'Mewtwo alt art' does not mean anything. We would need to know which one it is, which set it's from. The rest is fine",
+      "rating": 2,
+      "metadata": {
+        "post_type": "reply",
+        "tradeup_mention": false,
+        "original_tweet": "Just pulled a Mewtwo Alt Art! Should I sell now or hold?"
+      }
+    },
+    {
+      "id": "feedback_26_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.933529",
+      "post_content": "ETBs give you dice, sleeves, and storage box, but boosters have better value per pack. Depends if you want the extras or maximum pack opening! \u26a1\ufe0f",
+      "feedback": "Good, you can also claim that people tend to keep ETBs sealed and they tend to rise in price over time. Also, pokemon center ETBs are always more sought after. ETBs usually come with a promo card as well.",
+      "rating": 5,
+      "metadata": {
+        "post_type": "reply",
+        "tradeup_mention": false,
+        "original_tweet": "Are ETBs worth buying or should I just get booster boxes?"
+      }
+    },
+    {
+      "id": "feedback_27_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.935291",
+      "post_content": "Start with a Trainer Kit or Battle Academy! Great for learning the game, then move to theme decks or an Elite Trainer Box for their favorite set \ud83d\ude0d",
+      "feedback": "This is great! This is also a great place to promote tradeup a bit at the end. If you get a duplicate card you can put it on tradeup and trade it for the card you're looking for",
+      "rating": 5,
+      "metadata": {
+        "post_type": "reply",
+        "tradeup_mention": false,
+        "original_tweet": "My kid wants to start collecting Pok\u00e9mon cards. Where should we begin?"
+      }
+    },
+    {
+      "id": "feedback_28_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.936571",
+      "post_content": "Unpacked a booster box with zero hits. Pain. Absolute pain. \ud83d\udc09 #PackLuck",
+      "feedback": "Great",
+      "rating": 5,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_29_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.937787",
+      "post_content": "The texture on these new Pok\u00e9mon ex cards is next level. Almost 3D in person! \u26a1\ufe0f",
+      "feedback": "Vague. EX cards are from all eras almost, so we don't know what you're talking about here. I would say something like the texture on the new pokemon cards is next level, removing the ex.",
+      "rating": 2,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_30_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.939019",
+      "post_content": "Hot take: Reverse holos are underrated and will be the sleeper hits of the future \ud83d\udd25",
+      "feedback": "Kinda makes sense but you must know that the market does not like reverse holos because of rairity. You pull too many so the price goes down. You can say that they are underrated and should not be considered bulk.",
+      "rating": 2,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_31_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.940520",
+      "post_content": "Just reorganized my entire collection by artist. Took 9 hours but so worth it \ud83d\ude0d #CardArt",
+      "feedback": "This is cool",
+      "rating": 5,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    },
+    {
+      "id": "feedback_32_20250613124405",
+      "timestamp": "2025-06-13T12:44:05.942176",
+      "post_content": "Anyone else notice how much better card stock quality is in the latest set? Finally fixed those cutting issues \ud83e\udd29",
+      "feedback": "This is good if it's true.",
+      "rating": 5,
+      "metadata": {
+        "post_type": "post",
+        "tradeup_mention": false
+      }
+    }
+  ],
+  "learning_points": [
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_1_20250612161223",
+      "content": "Just pulled a shiny Charizard! My binder love is real right now \ud83d\udd25",
+      "lesson": "This post was rated 5/5. User feedback: Great post, very engaging and authentic",
+      "timestamp": "2025-06-12T16:12:23.339477"
+    },
+    {
+      "type": "negative_example",
+      "source_feedback_id": "feedback_2_20250612161223",
+      "content": "PSA 10 Pikachu prices keep climbing! Anyone else watching the market? #Pokemon #TCGCollector \ud83e\udd29",
+      "lesson": "This post was rated 2/5. User feedback: Too many hashtags, sounds spammy",
+      "timestamp": "2025-06-12T16:12:23.339951"
+    },
+    {
+      "type": "negative_example",
+      "source_feedback_id": "feedback_3_20250613124405",
+      "content": "Just pulled a Charizard VMAX Rainbow Rare! My hands are still shaking \ud83d\udd25 #PokemonTCG",
+      "lesson": "This post was rated 2/5. User feedback: This does not make much sense because no one knows which charizard VMAX it is, and no one says rainbow rare they just say rainbow. You should include which set it was from for example: Just pulled the Rainbow Charizard VMAX from Champion's path!",
+      "timestamp": "2025-06-13T12:44:05.913001"
+    },
+    {
+      "type": "negative_example",
+      "source_feedback_id": "feedback_4_20250613124405",
+      "content": "Anyone else think the Scarlet & Violet era has the best Alt Arts so far? That Mew card is pure art \ud83d\ude0d",
+      "lesson": "This post was rated 2/5. User feedback: This is great. I would just say that people don't say 'the scarlet & Violet era' they just say 'Scarlet & Violet era'",
+      "timestamp": "2025-06-13T12:44:05.913500"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_5_20250613124405",
+      "content": "PSA 10 vintage WOTC holos are climbing again! Might be time to check your binders \ud83e\udd29 #Pokemon #TCGFinance",
+      "lesson": "This post was rated 5/5. User feedback: THIS IS PERFECT! Great job and great use of the acronym WOTC",
+      "timestamp": "2025-06-13T12:44:05.914367"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_6_20250613124405",
+      "content": "Hot take: Japanese card quality > English card quality. The centering and print lines don't lie \ud83d\ude09",
+      "lesson": "This post was rated 5/5. User feedback: perfect",
+      "timestamp": "2025-06-13T12:44:05.915048"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_7_20250613124405",
+      "content": "Finally completed my Eeveelution Alt Art collection! Which one's your favorite? \ud83d\udc09",
+      "lesson": "This post was rated 5/5. User feedback: perfect",
+      "timestamp": "2025-06-13T12:44:05.915747"
+    },
+    {
+      "type": "negative_example",
+      "source_feedback_id": "feedback_9_20250613124405",
+      "content": "Pop reports for Charizard Base Set are showing fewer PSA 10s than expected. Market might adjust soon \ud83d\udd25",
+      "lesson": "This post was rated 2/5. User feedback: We typically say Base Set Charizard not Charizard base set. The rest is on point",
+      "timestamp": "2025-06-13T12:44:05.917063"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_10_20250613124405",
+      "content": "What's your unpopular Pok\u00e9mon TCG opinion? Mine: modern sets are better than vintage for actual gameplay \ud83d\ude0d",
+      "lesson": "This post was rated 5/5. User feedback: This is great.",
+      "timestamp": "2025-06-13T12:44:05.919093"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_11_20250613124405",
+      "content": "Reminder: always check card condition before trading! Just saved myself from a bad deal on a damaged Lugia \ud83e\udd29",
+      "lesson": "This post was rated 5/5. User feedback: This would be a great place to promote TradeUp in a unique way. Always check your card conditions before trading! Just saved myself from a damaged lugia that was up on TradeUp. It might sound counter-intuitive but brining it up colloquially is the best way of promoting.",
+      "timestamp": "2025-06-13T12:44:05.919703"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_12_20250613124405",
+      "content": "The new Pok\u00e9mon TCG Pocket app is surprisingly addictive. Anyone else opening digital packs like crazy? \ud83d\ude09",
+      "lesson": "This post was rated 5/5. User feedback: Perfect",
+      "timestamp": "2025-06-13T12:44:05.920377"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_13_20250613124405",
+      "content": "Congrats on those PSA returns! 3 tens is incredible - what cards made the cut? \ud83d\udd25 #GradedGems",
+      "lesson": "This post was rated 5/5. User feedback: Perfect. You can also bring up controversial takes like 'Do you think you woulda gotten the same with CGC or BGS",
+      "timestamp": "2025-06-13T12:44:05.921036"
+    },
+    {
+      "type": "negative_example",
+      "source_feedback_id": "feedback_14_20250613124405",
+      "content": "That's actually pretty fair for a Charizard VMAX Rainbow in today's market! Check the centering before pulling the trigger though \ud83d\ude09",
+      "lesson": "This post was rated 2/5. User feedback: We typically say Rainbow Charizard not Charizard Rainbow and we do not include 'rare' at the end. The rest is perfect",
+      "timestamp": "2025-06-13T12:44:05.921714"
+    },
+    {
+      "type": "negative_example",
+      "source_feedback_id": "feedback_15_20250613124405",
+      "content": "Evolving Skies at $150 is decent considering the Eeveelution Alt Arts inside! Just know the pull rates can be brutal \ud83e\udd29 #HighRiskHighReward",
+      "lesson": "This post was rated 2/5. User feedback: DO NOT include hashtags when replying to tweets. This would be a hard one because the evolving skies set is at over $1800 now, so commenting the wrong thing about price can trigger a lack of understanding on our side. If you have data on the prices from TCG player in real time, you can check and see that this would be a steal and it might mean it's too good to be true. The comment about pull rates is great.",
+      "timestamp": "2025-06-13T12:44:05.922445"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_16_20250613124405",
+      "content": "Both have their charm! Vintage for nostalgia and investment, modern for amazing artwork and playability. Why not start with what excites you most? \ud83d\ude0d",
+      "lesson": "This post was rated 5/5. User feedback: Perfect. There's a big divide between collectors and investors and players and this is good to highlight those differences.",
+      "timestamp": "2025-06-13T12:44:05.923170"
+    },
+    {
+      "type": "negative_example",
+      "source_feedback_id": "feedback_17_20250613124405",
+      "content": "Old 1999 cards could be treasure! Check for holos, starters, and Charizards first. Only grade if they're near mint or better \ud83d\udd25",
+      "lesson": "This post was rated 2/5. User feedback: 'old 1999 cards' is not a term we typically use, would rather you say 'Vintage cards could be gold if they're in the right condition'",
+      "timestamp": "2025-06-13T12:44:05.923917"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_18_20250613124405",
+      "content": "Pro tip: sleeve your cards BEFORE putting them in top loaders. Prevents scratches and keeps them pristine \u26a1\ufe0f",
+      "lesson": "This post was rated 5/5. User feedback: Perfect",
+      "timestamp": "2025-06-13T12:44:05.924724"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_19_20250613124405",
+      "content": "Controversial opinion: Pikachu isn't even in my top 5 Pok\u00e9mon to collect. Gengar gang rise up! \ud83d\udc09 #GhostTypes",
+      "lesson": "This post was rated 5/5. User feedback: PERFECT",
+      "timestamp": "2025-06-13T12:44:05.925557"
+    },
+    {
+      "type": "negative_example",
+      "source_feedback_id": "feedback_20_20250613124405",
+      "content": "The Japanese exclusive promos are getting ridiculous. That new Pikachu illustration is pure gold \ud83d\udd25",
+      "lesson": "This post was rated 2/5. User feedback: Vague but good",
+      "timestamp": "2025-06-13T12:44:05.926693"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_21_20250613124405",
+      "content": "Anyone else organize their binder by set number instead of Pok\u00e9mon type? Feels so satisfying when complete \ud83d\ude0d",
+      "lesson": "This post was rated 5/5. User feedback: Perfect but this can be made even better. Instead of ending it there, you can say something like 'how do you organize your pokemon binders?",
+      "timestamp": "2025-06-13T12:44:05.927732"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_22_20250613124405",
+      "content": "Just hit 500 unique Eevee cards in my collection! The obsession is real \ud83e\udd29 #EeveeCollector",
+      "lesson": "This post was rated 5/5. User feedback: This is a good place to promote tradeup as well. Just got my 500th Eevee card! Almost half of them came from trades on tradeup! THe obsession is real! etc..",
+      "timestamp": "2025-06-13T12:44:05.928839"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_23_20250613124405",
+      "content": "Market's definitely cooled since 2021, but true collectors are still here. Focus on cards you love, not just hype investments \ud83d\ude09",
+      "lesson": "This post was rated 5/5. User feedback: Perfect, you might even pull from recent data showing that people are attemtping to scalp the newest sets if you can.",
+      "timestamp": "2025-06-13T12:44:05.929886"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_24_20250613124405",
+      "content": "Perfect fit sleeve \u2192 top loader \u2192 team bag, stored upright in a cool, dry place away from sunlight. Your future self will thank you! \ud83d\udd25",
+      "lesson": "This post was rated 5/5. User feedback: Perfect",
+      "timestamp": "2025-06-13T12:44:05.931047"
+    },
+    {
+      "type": "negative_example",
+      "source_feedback_id": "feedback_25_20250613124405",
+      "content": "That Mewtwo Alt Art is gorgeous! If you love it, hold it - Alt Arts tend to climb over time. If you need cash, sell while it's hot \ud83e\udd29",
+      "lesson": "This post was rated 2/5. User feedback: Just saying 'Mewtwo alt art' does not mean anything. We would need to know which one it is, which set it's from. The rest is fine",
+      "timestamp": "2025-06-13T12:44:05.932296"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_26_20250613124405",
+      "content": "ETBs give you dice, sleeves, and storage box, but boosters have better value per pack. Depends if you want the extras or maximum pack opening! \u26a1\ufe0f",
+      "lesson": "This post was rated 5/5. User feedback: Good, you can also claim that people tend to keep ETBs sealed and they tend to rise in price over time. Also, pokemon center ETBs are always more sought after. ETBs usually come with a promo card as well.",
+      "timestamp": "2025-06-13T12:44:05.933537"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_27_20250613124405",
+      "content": "Start with a Trainer Kit or Battle Academy! Great for learning the game, then move to theme decks or an Elite Trainer Box for their favorite set \ud83d\ude0d",
+      "lesson": "This post was rated 5/5. User feedback: This is great! This is also a great place to promote tradeup a bit at the end. If you get a duplicate card you can put it on tradeup and trade it for the card you're looking for",
+      "timestamp": "2025-06-13T12:44:05.935310"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_28_20250613124405",
+      "content": "Unpacked a booster box with zero hits. Pain. Absolute pain. \ud83d\udc09 #PackLuck",
+      "lesson": "This post was rated 5/5. User feedback: Great",
+      "timestamp": "2025-06-13T12:44:05.936579"
+    },
+    {
+      "type": "negative_example",
+      "source_feedback_id": "feedback_29_20250613124405",
+      "content": "The texture on these new Pok\u00e9mon ex cards is next level. Almost 3D in person! \u26a1\ufe0f",
+      "lesson": "This post was rated 2/5. User feedback: Vague. EX cards are from all eras almost, so we don't know what you're talking about here. I would say something like the texture on the new pokemon cards is next level, removing the ex.",
+      "timestamp": "2025-06-13T12:44:05.937820"
+    },
+    {
+      "type": "negative_example",
+      "source_feedback_id": "feedback_30_20250613124405",
+      "content": "Hot take: Reverse holos are underrated and will be the sleeper hits of the future \ud83d\udd25",
+      "lesson": "This post was rated 2/5. User feedback: Kinda makes sense but you must know that the market does not like reverse holos because of rairity. You pull too many so the price goes down. You can say that they are underrated and should not be considered bulk.",
+      "timestamp": "2025-06-13T12:44:05.939026"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_31_20250613124405",
+      "content": "Just reorganized my entire collection by artist. Took 9 hours but so worth it \ud83d\ude0d #CardArt",
+      "lesson": "This post was rated 5/5. User feedback: This is cool",
+      "timestamp": "2025-06-13T12:44:05.940527"
+    },
+    {
+      "type": "positive_example",
+      "source_feedback_id": "feedback_32_20250613124405",
+      "content": "Anyone else notice how much better card stock quality is in the latest set? Finally fixed those cutting issues \ud83e\udd29",
+      "lesson": "This post was rated 5/5. User feedback: This is good if it's true.",
+      "timestamp": "2025-06-13T12:44:05.942185"
+    }
+  ]
+}
