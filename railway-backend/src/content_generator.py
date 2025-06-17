@@ -152,7 +152,7 @@ def apply_tradeup_mention(posts, count=5):
     
     return updated_posts
 
-def generate_viral_content(manual_topic=None, count=5):
+def generate_viral_content_main(manual_topic=None, count=5):
     """
     Generates multiple viral social media posts based on trending Pokémon TCG content.
     Now with integrated feedback learning from the database.
@@ -298,7 +298,7 @@ def generate_viral_content(count: int = 1, topic: str = None, keywords: list = N
     """
     try:
         # Use the main generation function
-        posts = generate_viral_content(manual_topic=topic, count=count)
+        posts = generate_viral_content_main(manual_topic=topic, count=count)
         
         # Convert to the format expected by main.py API
         viral_posts = []
