@@ -243,24 +243,17 @@ def generate_advanced_content(count=1, topic=None):
         content = response.choices[0].message.content
         print(f"🤖 OpenAI Response received: {len(content)} characters")
         
-        # Parse JSON response
-        try:
-            posts = json.loads(content)
-            if isinstance(posts, list):
-                print(f"✅ Parsed {len(posts)} posts from JSON")
-                return posts[:count]
-        except json.JSONDecodeError as e:
-            print(f"❌ JSON parse error: {e}")
-            # Try to extract JSON from response
-            json_match = re.search(r'\[.*?\]', content, re.DOTALL)
-            if json_match:
-                try:
-                    posts = json.loads(json_match.group(0))
-                    if isinstance(posts, list):
-                        print(f"✅ Extracted {len(posts)} posts from partial JSON")
-                        return posts[:count]
-                except:
-                    pass
+        # Parse JSON response using the proven parsing method
+        posts = parse_llm_response(content)
+        
+        # Filter out any non-dictionary items or malformed posts
+        valid_posts = [p for p in posts if isinstance(p, dict) and "post_content" in p]
+        
+        if valid_posts:
+            print(f"✅ Parsed {len(valid_posts)} posts from JSON")
+            return valid_posts[:count]
+        else:
+            print(f"❌ No valid posts parsed from response")
         
     except Exception as e:
         print(f"❌ Advanced generation error: {e}")
@@ -269,30 +262,68 @@ def generate_advanced_content(count=1, topic=None):
     print("🔄 Falling back to simple content generation")
     return generate_simple_content(count, topic)
 
-def apply_tradeup_mention(posts, count=5):
-    """Apply TradeUp mention to exactly 1 out of 5 posts with contextual selection"""
+def parse_llm_response(response_content):
+    """
+    Parses the LLM's response to extract individual posts.
+    Assumes the LLM returns a JSON array of objects.
+    """
+    try:
+        # Attempt to parse as direct JSON
+        posts = json.loads(response_content)
+        if isinstance(posts, list):
+            return posts
+    except json.JSONDecodeError:
+        pass
+
+    # Fallback for cases where LLM might not return perfect JSON
+    # Try to find JSON-like structures within the response
+    json_match = re.search(r'\[.*?\]', response_content, re.DOTALL)
+    if json_match:
+        try:
+            posts = json.loads(json_match.group(0))
+            if isinstance(posts, list):
+                return posts
+        except json.JSONDecodeError:
+            pass
+
+    # If all else fails, try to split by common separators and create a single post
+    # This is a last resort to ensure at least one post is returned
+    lines = [line.strip() for line in response_content.split('\n') if line.strip()]
+    if lines:
+        content = " ".join(lines)
+        tradeup_mentioned = "tradeup" in content.lower()
+        return [{
+            "post_content": content,
+            "tradeup_mention": tradeup_mentioned
+        }]
+    return []
+
+def apply_tradeup_mention(posts, probability=0.2):
+    """
+    Applies TradeUp mention to posts based on probability (from original working version).
     
+    :param posts: List of post dictionaries
+    :param probability: Probability of including a TradeUp mention (0.0 to 1.0)
+    :return: Updated list of posts with TradeUp mentions applied
+    """
+    # Deep copy the posts to avoid modifying the original
     updated_posts = [post.copy() for post in posts]
     
-    if not updated_posts:
-        return updated_posts
-    
-    # Select random post for TradeUp mention
-    max_index = min(len(updated_posts) - 1, count - 1)
-    post_index = random.randint(0, max_index)
-    
-    # Reset all flags
-    for post in updated_posts:
-        post["tradeup_mention"] = False
-    
-    # Add contextual TradeUp reference
-    selected_post = updated_posts[post_index]
-    tradeup_phrase = select_contextual_tradeup_reference(selected_post["post_content"])
-    
-    updated_posts[post_index]["post_content"] += " " + tradeup_phrase
-    updated_posts[post_index]["tradeup_mention"] = True
-    
-    print(f"💼 Added TradeUp mention to post {post_index + 1}: '{tradeup_phrase}'")
+    # Decide whether to include a TradeUp mention based on probability
+    if random.random() < probability and updated_posts:
+        # Select a random post to modify
+        post_index = random.randint(0, len(updated_posts) - 1)
+        
+        # Use contextual TradeUp reference if available, otherwise use simple one
+        try:
+            tradeup_phrase = select_contextual_tradeup_reference(updated_posts[post_index]["post_content"])
+        except:
+            tradeup_phrase = "If you trade it, TradeUp's got you 😉"
+        
+        updated_posts[post_index]["post_content"] += " " + tradeup_phrase
+        updated_posts[post_index]["tradeup_mention"] = True
+        
+        print(f"💼 Added TradeUp mention to post {post_index + 1}: '{tradeup_phrase}'")
     
     return updated_posts
 
@@ -317,8 +348,8 @@ def generate_viral_content(count: int = 1, topic: str = None, keywords: list = N
         print("🚀 Using template-based generation")
         posts = generate_simple_content(count, topic)
     
-    # Apply TradeUp mentions (1 in 5 rule)
-    posts = apply_tradeup_mention(posts, count)
+    # Apply TradeUp mentions (20% probability like original working version)
+    posts = apply_tradeup_mention(posts, probability=0.2)
     
     print(f"✅ Generated {len(posts)} posts")
     
@@ -347,13 +378,28 @@ def generate_viral_content(count: int = 1, topic: str = None, keywords: list = N
                 }
             })
     
+    # Ensure we return exactly `count` posts, filling with placeholders if necessary
+    while len(viral_posts) < count:
+        viral_posts.append({
+            "content": f"Placeholder post {len(viral_posts) + 1}. No content generated for this slot.",
+            "engagement_score": 0.5,
+            "estimated_likes": 20,
+            "estimated_retweets": 5,
+            "hashtags": [],
+            "mentions_tradeup": False,
+            "generated_at": datetime.now().isoformat(),
+            "topic": topic or "general",
+            "keywords": keywords or [],
+            "method": "placeholder"
+        })
+    
     # Log sample for debugging
-    if viral_posts:
+    if viral_posts and len(viral_posts) > 0:
         sample = viral_posts[0]
         print(f"📝 Sample: {sample['content']}")
-        print(f"🏷️ Method: {sample['method']}")
+        print(f"🏷️ Method: {sample.get('method', 'unknown')}")
         print(f"💼 TradeUp: {sample['mentions_tradeup']}")
-    
+
     return viral_posts
 
 def generate_openai_content_simple(count=1, topic=None):
@@ -388,11 +434,12 @@ def generate_openai_content_simple(count=1, topic=None):
         content = response.choices[0].message.content
         
         try:
-            posts = json.loads(content)
-            if isinstance(posts, list):
-                return posts[:count]
-        except json.JSONDecodeError:
-            pass
+            posts = parse_llm_response(content)
+            valid_posts = [p for p in posts if isinstance(p, dict) and "post_content" in p]
+            if valid_posts:
+                return valid_posts[:count]
+        except Exception as e:
+            print(f"Error parsing simple OpenAI response: {e}")
             
     except Exception as e:
         print(f"Simple OpenAI generation error: {e}")
