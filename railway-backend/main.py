@@ -55,7 +55,7 @@ except ImportError as e:
         def update_settings(self, settings): return settings
 
 try:
-    from content_generator import generate_viral_content, optimize_content_for_engagement
+    from src.content_generator import generate_viral_content, optimize_content_for_engagement
     logger.info("Successfully imported content generation modules")
 except ImportError as e:
     logger.warning(f"Could not import content generators: {e}")

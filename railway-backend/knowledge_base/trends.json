@@ -1,0 +1,1270 @@
+{
+  "last_updated": "2025-06-10T16:26:03.630032",
+  "trends": [
+    {
+      "trend": "The Cold, Grimm Future \u2014 Why Marnie\u2019s Grimmsnarl ex is the Newest Meta Deck",
+      "description": "",
+      "source": "PokeBeach",
+      "url": "https://www.pokebeach.com/2025/06/the-cold-grimm-future-why-marnies-grimmsnarl-ex-is-the-newest-meta-deck",
+      "date": "Unknown Date",
+      "date_extracted": "2025-06-09T11:13:31.393103",
+      "first_seen": "2025-06-09T11:13:54.855261",
+      "last_seen": "2025-06-09T11:13:54.855392",
+      "mentions": 1
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639213"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639231"
+    },
+    {
+      "trend": "flygon",
+      "description": "Trending topic from Nitter/PokeAPI: flygon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639234"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639243"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639246"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639249"
+    },
+    {
+      "trend": "levitate.",
+      "description": "Trending topic from Nitter/PokeAPI: levitate.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639251"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639253"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639256"
+    },
+    {
+      "trend": "nickit",
+      "description": "Trending topic from Nitter/PokeAPI: nickit",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639258"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639261"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639263"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639265"
+    },
+    {
+      "trend": "run-away,",
+      "description": "Trending topic from Nitter/PokeAPI: run-away,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639267"
+    },
+    {
+      "trend": "unburden,",
+      "description": "Trending topic from Nitter/PokeAPI: unburden,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639270"
+    },
+    {
+      "trend": "stakeout.",
+      "description": "Trending topic from Nitter/PokeAPI: stakeout.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639272"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639274"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639276"
+    },
+    {
+      "trend": "miltank",
+      "description": "Trending topic from Nitter/PokeAPI: miltank",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639279"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639281"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639283"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639285"
+    },
+    {
+      "trend": "thick-fat,",
+      "description": "Trending topic from Nitter/PokeAPI: thick-fat,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639287"
+    },
+    {
+      "trend": "scrappy,",
+      "description": "Trending topic from Nitter/PokeAPI: scrappy,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639290"
+    },
+    {
+      "trend": "sap-sipper.",
+      "description": "Trending topic from Nitter/PokeAPI: sap-sipper.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639292"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639294"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639297"
+    },
+    {
+      "trend": "porygon2",
+      "description": "Trending topic from Nitter/PokeAPI: porygon2",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639299"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639301"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639303"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639306"
+    },
+    {
+      "trend": "trace,",
+      "description": "Trending topic from Nitter/PokeAPI: trace,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639308"
+    },
+    {
+      "trend": "download,",
+      "description": "Trending topic from Nitter/PokeAPI: download,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639310"
+    },
+    {
+      "trend": "analytic.",
+      "description": "Trending topic from Nitter/PokeAPI: analytic.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639313"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639315"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639317"
+    },
+    {
+      "trend": "mareanie",
+      "description": "Trending topic from Nitter/PokeAPI: mareanie",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639319"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639321"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639324"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639326"
+    },
+    {
+      "trend": "merciless,",
+      "description": "Trending topic from Nitter/PokeAPI: merciless,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639328"
+    },
+    {
+      "trend": "limber,",
+      "description": "Trending topic from Nitter/PokeAPI: limber,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639330"
+    },
+    {
+      "trend": "regenerator.",
+      "description": "Trending topic from Nitter/PokeAPI: regenerator.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-09T17:49:25.639333"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343672"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343724"
+    },
+    {
+      "trend": "pangoro",
+      "description": "Trending topic from Nitter/PokeAPI: pangoro",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343727"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343735"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343738"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343741"
+    },
+    {
+      "trend": "iron-fist,",
+      "description": "Trending topic from Nitter/PokeAPI: iron-fist,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343743"
+    },
+    {
+      "trend": "mold-breaker,",
+      "description": "Trending topic from Nitter/PokeAPI: mold-breaker,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343746"
+    },
+    {
+      "trend": "scrappy.",
+      "description": "Trending topic from Nitter/PokeAPI: scrappy.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343748"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343751"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343754"
+    },
+    {
+      "trend": "snom",
+      "description": "Trending topic from Nitter/PokeAPI: snom",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343756"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343758"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343761"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343763"
+    },
+    {
+      "trend": "shield-dust,",
+      "description": "Trending topic from Nitter/PokeAPI: shield-dust,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343765"
+    },
+    {
+      "trend": "ice-scales.",
+      "description": "Trending topic from Nitter/PokeAPI: ice-scales.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343768"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343770"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343772"
+    },
+    {
+      "trend": "abomasnow",
+      "description": "Trending topic from Nitter/PokeAPI: abomasnow",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343774"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343777"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343779"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343781"
+    },
+    {
+      "trend": "snow-warning,",
+      "description": "Trending topic from Nitter/PokeAPI: snow-warning,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343784"
+    },
+    {
+      "trend": "soundproof.",
+      "description": "Trending topic from Nitter/PokeAPI: soundproof.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343786"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343788"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343790"
+    },
+    {
+      "trend": "staraptor",
+      "description": "Trending topic from Nitter/PokeAPI: staraptor",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343825"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343828"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343831"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343834"
+    },
+    {
+      "trend": "intimidate,",
+      "description": "Trending topic from Nitter/PokeAPI: intimidate,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343836"
+    },
+    {
+      "trend": "reckless.",
+      "description": "Trending topic from Nitter/PokeAPI: reckless.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343839"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343844"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343846"
+    },
+    {
+      "trend": "gothitelle",
+      "description": "Trending topic from Nitter/PokeAPI: gothitelle",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343848"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343851"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343853"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343856"
+    },
+    {
+      "trend": "frisk,",
+      "description": "Trending topic from Nitter/PokeAPI: frisk,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343858"
+    },
+    {
+      "trend": "competitive,",
+      "description": "Trending topic from Nitter/PokeAPI: competitive,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343860"
+    },
+    {
+      "trend": "shadow-tag.",
+      "description": "Trending topic from Nitter/PokeAPI: shadow-tag.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:35.343862"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.928963"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.928982"
+    },
+    {
+      "trend": "wailmer",
+      "description": "Trending topic from Nitter/PokeAPI: wailmer",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.928985"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.928987"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.928990"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.928992"
+    },
+    {
+      "trend": "water-veil,",
+      "description": "Trending topic from Nitter/PokeAPI: water-veil,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.928995"
+    },
+    {
+      "trend": "oblivious,",
+      "description": "Trending topic from Nitter/PokeAPI: oblivious,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.928998"
+    },
+    {
+      "trend": "pressure.",
+      "description": "Trending topic from Nitter/PokeAPI: pressure.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929000"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929002"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929004"
+    },
+    {
+      "trend": "slakoth",
+      "description": "Trending topic from Nitter/PokeAPI: slakoth",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929007"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929009"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929011"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929014"
+    },
+    {
+      "trend": "truant.",
+      "description": "Trending topic from Nitter/PokeAPI: truant.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929016"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929018"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929020"
+    },
+    {
+      "trend": "gyarados",
+      "description": "Trending topic from Nitter/PokeAPI: gyarados",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929023"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929025"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929027"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929029"
+    },
+    {
+      "trend": "intimidate,",
+      "description": "Trending topic from Nitter/PokeAPI: intimidate,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929032"
+    },
+    {
+      "trend": "moxie.",
+      "description": "Trending topic from Nitter/PokeAPI: moxie.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929038"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929040"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929042"
+    },
+    {
+      "trend": "metang",
+      "description": "Trending topic from Nitter/PokeAPI: metang",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929044"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929046"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929049"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929051"
+    },
+    {
+      "trend": "clear-body,",
+      "description": "Trending topic from Nitter/PokeAPI: clear-body,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929053"
+    },
+    {
+      "trend": "light-metal.",
+      "description": "Trending topic from Nitter/PokeAPI: light-metal.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929055"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929058"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929060"
+    },
+    {
+      "trend": "arctibax",
+      "description": "Trending topic from Nitter/PokeAPI: arctibax",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929062"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929064"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929066"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929068"
+    },
+    {
+      "trend": "thermal-exchange,",
+      "description": "Trending topic from Nitter/PokeAPI: thermal-exchange,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929071"
+    },
+    {
+      "trend": "ice-body.",
+      "description": "Trending topic from Nitter/PokeAPI: ice-body.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T13:41:38.929073"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298324"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298345"
+    },
+    {
+      "trend": "corphish",
+      "description": "Trending topic from Nitter/PokeAPI: corphish",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298347"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298358"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298361"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298363"
+    },
+    {
+      "trend": "hyper-cutter,",
+      "description": "Trending topic from Nitter/PokeAPI: hyper-cutter,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298366"
+    },
+    {
+      "trend": "shell-armor,",
+      "description": "Trending topic from Nitter/PokeAPI: shell-armor,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298368"
+    },
+    {
+      "trend": "adaptability.",
+      "description": "Trending topic from Nitter/PokeAPI: adaptability.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298370"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298372"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298374"
+    },
+    {
+      "trend": "panpour",
+      "description": "Trending topic from Nitter/PokeAPI: panpour",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298377"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298379"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298381"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298383"
+    },
+    {
+      "trend": "gluttony,",
+      "description": "Trending topic from Nitter/PokeAPI: gluttony,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298386"
+    },
+    {
+      "trend": "torrent.",
+      "description": "Trending topic from Nitter/PokeAPI: torrent.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298388"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298390"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298392"
+    },
+    {
+      "trend": "pyukumuku",
+      "description": "Trending topic from Nitter/PokeAPI: pyukumuku",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298394"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298397"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298399"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298401"
+    },
+    {
+      "trend": "innards-out,",
+      "description": "Trending topic from Nitter/PokeAPI: innards-out,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298403"
+    },
+    {
+      "trend": "unaware.",
+      "description": "Trending topic from Nitter/PokeAPI: unaware.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298405"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298408"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298410"
+    },
+    {
+      "trend": "wiglett",
+      "description": "Trending topic from Nitter/PokeAPI: wiglett",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298412"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298414"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298416"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298418"
+    },
+    {
+      "trend": "gooey,",
+      "description": "Trending topic from Nitter/PokeAPI: gooey,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298420"
+    },
+    {
+      "trend": "rattled,",
+      "description": "Trending topic from Nitter/PokeAPI: rattled,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298423"
+    },
+    {
+      "trend": "sand-veil.",
+      "description": "Trending topic from Nitter/PokeAPI: sand-veil.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298425"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298427"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298429"
+    },
+    {
+      "trend": "buzzwole",
+      "description": "Trending topic from Nitter/PokeAPI: buzzwole",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298431"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298433"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298435"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298438"
+    },
+    {
+      "trend": "beast-boost.",
+      "description": "Trending topic from Nitter/PokeAPI: beast-boost.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:25:49.298440"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629900"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629916"
+    },
+    {
+      "trend": "goodra",
+      "description": "Trending topic from Nitter/PokeAPI: goodra",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629919"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629921"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629924"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629926"
+    },
+    {
+      "trend": "sap-sipper,",
+      "description": "Trending topic from Nitter/PokeAPI: sap-sipper,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629942"
+    },
+    {
+      "trend": "hydration,",
+      "description": "Trending topic from Nitter/PokeAPI: hydration,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629944"
+    },
+    {
+      "trend": "gooey.",
+      "description": "Trending topic from Nitter/PokeAPI: gooey.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629947"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629949"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629951"
+    },
+    {
+      "trend": "cyclizar",
+      "description": "Trending topic from Nitter/PokeAPI: cyclizar",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629953"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629956"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629958"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629960"
+    },
+    {
+      "trend": "shed-skin,",
+      "description": "Trending topic from Nitter/PokeAPI: shed-skin,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629962"
+    },
+    {
+      "trend": "regenerator.",
+      "description": "Trending topic from Nitter/PokeAPI: regenerator.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629965"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629967"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629969"
+    },
+    {
+      "trend": "magmar",
+      "description": "Trending topic from Nitter/PokeAPI: magmar",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629971"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629973"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629976"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629978"
+    },
+    {
+      "trend": "flame-body,",
+      "description": "Trending topic from Nitter/PokeAPI: flame-body,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629980"
+    },
+    {
+      "trend": "vital-spirit.",
+      "description": "Trending topic from Nitter/PokeAPI: vital-spirit.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629982"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629984"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629987"
+    },
+    {
+      "trend": "golett",
+      "description": "Trending topic from Nitter/PokeAPI: golett",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629989"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629991"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629993"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629996"
+    },
+    {
+      "trend": "iron-fist,",
+      "description": "Trending topic from Nitter/PokeAPI: iron-fist,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.629998"
+    },
+    {
+      "trend": "klutz,",
+      "description": "Trending topic from Nitter/PokeAPI: klutz,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.630000"
+    },
+    {
+      "trend": "no-guard.",
+      "description": "Trending topic from Nitter/PokeAPI: no-guard.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.630002"
+    },
+    {
+      "trend": "Pokemon",
+      "description": "Trending topic from Nitter/PokeAPI: Pokemon",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.630005"
+    },
+    {
+      "trend": "fact:",
+      "description": "Trending topic from Nitter/PokeAPI: fact:",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.630007"
+    },
+    {
+      "trend": "golduck",
+      "description": "Trending topic from Nitter/PokeAPI: golduck",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.630009"
+    },
+    {
+      "trend": "has",
+      "description": "Trending topic from Nitter/PokeAPI: has",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.630011"
+    },
+    {
+      "trend": "abilities",
+      "description": "Trending topic from Nitter/PokeAPI: abilities",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.630014"
+    },
+    {
+      "trend": "like",
+      "description": "Trending topic from Nitter/PokeAPI: like",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.630016"
+    },
+    {
+      "trend": "damp,",
+      "description": "Trending topic from Nitter/PokeAPI: damp,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.630018"
+    },
+    {
+      "trend": "cloud-nine,",
+      "description": "Trending topic from Nitter/PokeAPI: cloud-nine,",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.630020"
+    },
+    {
+      "trend": "swift-swim.",
+      "description": "Trending topic from Nitter/PokeAPI: swift-swim.",
+      "source": "Continuous Learning",
+      "date_extracted": "2025-06-10T16:26:03.630023"
+    }
+  ]
+}
