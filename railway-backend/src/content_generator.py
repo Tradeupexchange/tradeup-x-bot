@@ -155,10 +155,7 @@ def generate_viral_content(manual_topic=None, count=5):
     :return: A list of dictionaries, each representing a post.
     """
     continuous_learning_data = get_continuous_learning_data()
-    
-    # Get learning feedback from the database
-    learning_summary = feedback_db.get_learning_summary(max_points=5)
-    best_examples = feedback_db.get_best_examples(count=3)
+
     
     # Format best examples for the prompt
     best_examples_text = ""
