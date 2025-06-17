@@ -1,5 +1,5 @@
-build]
-  base = "."  # Set base to root directory since your frontend is in the repo root
+[build]
+  base = "."
   publish = "dist"
   command = "npm run build"
 
@@ -11,14 +11,12 @@ build]
   port = 5173
   publish = "dist"
 
-# Redirect API calls to Railway backend
 [[redirects]]
   from = "/api/*"
-  to = "https://pokemon-tcg-dashboard-production.up.railway.app/api/:splat"
+  to = "https://your-railway-app.up.railway.app/api/:splat"
   status = 200
   force = true
 
-# SPA fallback - redirect all other routes to index.html
 [[redirects]]
   from = "/*"
   to = "/index.html"
