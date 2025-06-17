@@ -69,7 +69,7 @@ const Dashboard: React.FC = () => {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Dashboard Overview</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">TradeUp Exchange X Bot Control Dashboard</h2>
           <p className="text-gray-600">Monitor and control your Pokemon TCG bot's performance</p>
         </div>
         <div className="flex items-center space-x-4">

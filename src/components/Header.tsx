@@ -15,8 +15,8 @@ const Header: React.FC<HeaderProps> = ({ onSettingsClick }) => {
               <Zap className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Pokemon TCG Bot</h1>
-              <p className="text-sm text-gray-600">Social Media Analytics Dashboard</p>
+              <h1 className="text-2xl font-bold text-gray-900">TradeUp X Bot</h1>
+              <p className="text-sm text-gray-600">Control Dashboard</p>
             </div>
           </div>
           
