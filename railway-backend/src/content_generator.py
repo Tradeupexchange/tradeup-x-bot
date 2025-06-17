@@ -19,9 +19,6 @@ from src.config import OPENAI_API_KEY
 # Initialize OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Initialize feedback database
-feedback_db = FeedbackDatabase()
-
 # List of varied TradeUp references to use
 TRADEUP_REFERENCES = [
     "If you trade it, TradeUp's got you 😉",
