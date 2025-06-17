@@ -66,7 +66,7 @@ except ImportError as e:
         return content
 
 try:
-    from twitter_poster import post_original_tweet, get_tweet_url
+    from src.twitter_poster import post_original_tweet, get_tweet_url
     logger.info("Successfully imported Twitter modules")
 except ImportError as e:
     logger.warning(f"Could not import Twitter modules: {e}")
