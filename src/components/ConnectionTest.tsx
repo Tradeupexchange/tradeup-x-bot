@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { AlertCircle, CheckCircle, RefreshCw, ExternalLink, Info, Globe, AlertTriangle, Server } from 'lucide-react';
+import { AlertCircle, CheckCircle, RefreshCw, ExternalLink, AlertTriangle, Globe } from 'lucide-react';
 import { getRefreshInterval } from '../hooks/useApi';
 
 const ConnectionTest: React.FC = () => {
   const [status, setStatus] = useState<'testing' | 'connected' | 'error'>('testing');
   const [error, setError] = useState<string | null>(null);
-  const [apiUrl, setApiUrl] = useState<string>('');
   const [testResults, setTestResults] = useState<any[]>([]);
   const [railwayStatus, setRailwayStatus] = useState<'unknown' | 'healthy' | 'unhealthy'>('unknown');
   const [corsIssues, setCorsIssues] = useState<boolean>(false);
@@ -201,16 +200,12 @@ const ConnectionTest: React.FC = () => {
     }
   }, [normalizeUrl, testRailwayHealth]);
 
-  // Initialize URL and run initial test
+  // Initialize and run initial test
   useEffect(() => {
-    const railwayUrl = import.meta.env.VITE_RAILWAY_API_URL;
-    const normalizedUrl = railwayUrl ? normalizeUrl(railwayUrl) : 'Not set';
-    setApiUrl(normalizedUrl);
-    
     // Run initial test
     console.log('🚀 ConnectionTest: Running initial connection test...');
     testConnection(false);
-  }, [normalizeUrl, testConnection]);
+  }, [testConnection]);
 
   // Set up interval using centralized timing
   useEffect(() => {
@@ -251,54 +246,23 @@ const ConnectionTest: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
+    <div className="bg-white rounded-xl p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-2">
           <Globe className="h-5 w-5 text-blue-600" />
           <h3 className="text-lg font-semibold text-gray-900">Railway Backend Connection</h3>
         </div>
-        <div className="flex items-center space-x-2">
-          {apiUrl && apiUrl !== 'Not set' && (
-            <>
-              <a
-                href={`${apiUrl}/docs`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center space-x-1 px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm"
-              >
-                <ExternalLink className="h-3 w-3" />
-                <span>API Docs</span>
-              </a>
-              <a
-                href={apiUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center space-x-1 px-3 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 text-sm"
-              >
-                <Server className="h-3 w-3" />
-                <span>Direct Test</span>
-              </a>
-            </>
-          )}
-          <button
-            onClick={handleManualTest}
-            disabled={status === 'testing'}
-            className="flex items-center space-x-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${status === 'testing' ? 'animate-spin' : ''}`} />
-            <span>{manualTest ? 'Testing...' : 'Test Now'}</span>
-          </button>
-        </div>
+        <button
+          onClick={handleManualTest}
+          disabled={status === 'testing'}
+          className="flex items-center space-x-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+        >
+          <RefreshCw className={`h-4 w-4 ${status === 'testing' ? 'animate-spin' : ''}`} />
+          <span>{manualTest ? 'Testing...' : 'Test Now'}</span>
+        </button>
       </div>
 
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">Railway URL:</span>
-          <span className="text-sm font-mono bg-gray-100 px-2 py-1 rounded break-all">
-            {apiUrl}
-          </span>
-        </div>
-
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-600">Server Status:</span>
           <div className="flex items-center space-x-2">
@@ -320,14 +284,6 @@ const ConnectionTest: React.FC = () => {
           </div>
         </div>
 
-        {/* Test timing information - now synced with centralized config */}
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">Last Test:</span>
-          <span className="text-sm text-gray-800">
-            {lastTest ? lastTest.toLocaleTimeString() : 'Not tested yet'}
-          </span>
-        </div>
-
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-600">Next Auto Test:</span>
           <span className="text-sm text-gray-800">{getNextTestTime()}</span>
@@ -340,18 +296,6 @@ const ConnectionTest: React.FC = () => {
               <span className="text-blue-600">
                 {manualTest ? 'Running manual test...' : 'Testing connection...'}
               </span>
-            </>
-          )}
-          {status === 'connected' && (
-            <>
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <span className="text-green-600">Connected successfully!</span>
-              {corsIssues && (
-                <div className="flex items-center space-x-1">
-                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                  <span className="text-yellow-600 text-sm">CORS issues detected</span>
-                </div>
-              )}
             </>
           )}
           {status === 'error' && (
@@ -400,18 +344,6 @@ const ConnectionTest: React.FC = () => {
             <p className="text-sm text-red-700">
               <strong>Error:</strong> {error}
             </p>
-            <div className="mt-2 text-xs text-red-600">
-              <p><strong>Troubleshooting Steps:</strong></p>
-              <ol className="list-decimal list-inside mt-1 space-y-1">
-                <li>Click "Direct" button above to test Railway app directly in browser</li>
-                <li>Check Railway deployment logs for startup errors</li>
-                <li>Verify your backend server is configured to accept CORS requests</li>
-                <li>Ensure Railway app has proper PORT environment variable set</li>
-                <li>Check if Railway service is sleeping (hobby plan limitation)</li>
-                <li>Verify all environment variables are set in Railway dashboard</li>
-                <li>Test API endpoints manually using the "API Docs" link</li>
-              </ol>
-            </div>
           </div>
         )}
 
@@ -421,35 +353,11 @@ const ConnectionTest: React.FC = () => {
               <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5" />
               <div className="text-xs text-yellow-700">
                 <p><strong>CORS Issues Detected:</strong></p>
-                <p>Your backend server needs to be configured to allow cross-origin requests. Add these headers to your Railway backend:</p>
-                <div className="mt-2 p-2 bg-yellow-100 rounded font-mono text-xs">
-                  Access-Control-Allow-Origin: {window.location.origin}<br/>
-                  Access-Control-Allow-Methods: GET, POST, PUT, DELETE<br/>
-                  Access-Control-Allow-Headers: Content-Type, Authorization
-                </div>
+                <p>Your backend server needs to be configured to allow cross-origin requests.</p>
               </div>
             </div>
           </div>
         )}
-
-        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-start space-x-2">
-            <Info className="h-4 w-4 text-blue-600 mt-0.5" />
-            <div className="text-xs text-blue-700">
-              <p><strong>Auto-Test Schedule (Synced with Data Components):</strong></p>
-              <div className="grid grid-cols-2 gap-2 mt-1">
-                <div>Test Frequency: Every {refreshConfig.displayText}</div>
-                <div>Last Test: {lastTest ? lastTest.toLocaleString() : 'Not tested'}</div>
-                <div>Next Test: {getNextTestTime()}</div>
-                <div>Manual Override: Available anytime</div>
-                <div>Synced with: All data components</div>
-                <div>Environment: {import.meta.env.MODE}</div>
-                <div>Dev Mode: {import.meta.env.DEV ? 'Yes' : 'No'}</div>
-                <div>Normalized URL: {apiUrl}</div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

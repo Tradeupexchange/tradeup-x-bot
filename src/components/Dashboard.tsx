@@ -80,15 +80,25 @@ const Dashboard: React.FC = () => {
       </div>
       
       <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
-        <ConnectionTest />
-      </div>
-      
-      <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
         <TestButtons />
       </div>
       
       <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
         <BotControl />
+      </div>
+      
+      {/* Connection Test and another component side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
+          <ConnectionTest />
+        </div>
+        <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
+          {/* Add your second component here */}
+          <div className="text-center text-gray-500">
+            <h3 className="text-lg font-semibold mb-2">Second Dashboard Component</h3>
+            <p>Place your new component here</p>
+          </div>
+        </div>
       </div>
       
       <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
