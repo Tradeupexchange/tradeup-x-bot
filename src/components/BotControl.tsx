@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Square, RefreshCw, AlertCircle, CheckCircle, MessageSquare, Reply, Settings, Clock, Target } from 'lucide-react';
+import { Play, Square, RefreshCw, AlertCircle, CheckCircle, MessageSquare, Reply, Settings, Clock, Target, Eye, Check, X, Calendar, Plus, Trash2 } from 'lucide-react';
 import { useApi, apiCall } from '../hooks/useApi';
 
 interface BotJob {
@@ -17,11 +17,38 @@ interface BotJob {
   };
 }
 
+interface GeneratedPost {
+  id: string;
+  content: string;
+  topic: string;
+  approved: boolean | null; // null = pending, true = approved, false = rejected
+  scheduledTime?: string;
+  engagement_score?: number;
+  hashtags?: string[];
+  mentions_tradeup?: boolean;
+}
+
+interface JobSettings {
+  postsPerDay: number;
+  topics: string[];
+  postingTimeStart: string;
+  postingTimeEnd: string;
+  contentTypes: {
+    cardPulls: boolean;
+    deckBuilding: boolean;
+    marketAnalysis: boolean;
+    tournaments: boolean;
+  };
+}
+
 const BotControl: React.FC = () => {
   const { data: status, loading, refetch } = useApi('/api/bot-status');
   const [jobs, setJobs] = useState<BotJob[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showScheduler, setShowScheduler] = useState(false);
+  const [showPostApproval, setShowPostApproval] = useState(false);
+  const [generatedPosts, setGeneratedPosts] = useState<GeneratedPost[]>([]);
+  const [currentJobSettings, setCurrentJobSettings] = useState<JobSettings | null>(null);
 
   useEffect(() => {
     if (status?.jobs) {
@@ -51,6 +78,141 @@ const BotControl: React.FC = () => {
     } catch (error) {
       console.error(`Error ${action}ing job:`, error);
       alert(`Failed to ${action} job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setActionLoading(null);
+    }
+  };
+
+  const generateScheduledTimes = (count: number, startTime: string, endTime: string): string[] => {
+    const times: string[] = [];
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
+    
+    const startMinutes = startHour * 60 + startMin;
+    const endMinutes = endHour * 60 + endMin;
+    const totalMinutes = endMinutes - startMinutes;
+    const interval = Math.floor(totalMinutes / count);
+    
+    for (let i = 0; i < count; i++) {
+      const postTime = startMinutes + (interval * i);
+      const hour = Math.floor(postTime / 60);
+      const minute = postTime % 60;
+      times.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
+    }
+    
+    return times;
+  };
+
+  const createJobWithApproval = async (jobSettings: JobSettings) => {
+    try {
+      setActionLoading('generate-posts');
+      console.log('🧪 Creating job with approval workflow...');
+
+      // Step 1: Generate posts for approval
+      console.log('📝 Generating posts for approval...');
+      const posts: GeneratedPost[] = [];
+      
+      for (let i = 0; i < jobSettings.postsPerDay; i++) {
+        const randomTopic = jobSettings.topics[Math.floor(Math.random() * jobSettings.topics.length)];
+        
+        const contentResult = await apiCall('/api/generate-content', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic: randomTopic,
+            count: 1
+          })
+        });
+
+        if (contentResult.success && contentResult.content) {
+          posts.push({
+            id: `post-${Date.now()}-${i}`,
+            content: contentResult.content.content || contentResult.content,
+            topic: randomTopic,
+            approved: null,
+            engagement_score: contentResult.content.engagement_score,
+            hashtags: contentResult.content.hashtags,
+            mentions_tradeup: contentResult.content.mentions_tradeup
+          });
+        }
+      }
+
+      // Generate scheduled times
+      const scheduledTimes = generateScheduledTimes(
+        jobSettings.postsPerDay,
+        jobSettings.postingTimeStart,
+        jobSettings.postingTimeEnd
+      );
+
+      // Assign scheduled times to posts
+      posts.forEach((post, index) => {
+        post.scheduledTime = scheduledTimes[index];
+      });
+
+      setGeneratedPosts(posts);
+      setCurrentJobSettings(jobSettings);
+      setShowScheduler(false);
+      setShowPostApproval(true);
+
+    } catch (error) {
+      console.error('❌ Post generation failed:', error);
+      alert(`Failed to generate posts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const approvePost = (postId: string) => {
+    setGeneratedPosts(prev => 
+      prev.map(post => 
+        post.id === postId ? { ...post, approved: true } : post
+      )
+    );
+  };
+
+  const rejectPost = (postId: string) => {
+    setGeneratedPosts(prev => 
+      prev.map(post => 
+        post.id === postId ? { ...post, approved: false } : post
+      )
+    );
+  };
+
+  const scheduleApprovedPosts = async () => {
+    try {
+      setActionLoading('schedule');
+      const approvedPosts = generatedPosts.filter(post => post.approved === true);
+      
+      if (approvedPosts.length === 0) {
+        alert('Please approve at least one post before scheduling.');
+        return;
+      }
+
+      console.log('📅 Scheduling approved posts...', approvedPosts);
+
+      // Create the actual job with approved posts
+      const result = await apiCall('/api/bot-job/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'posting',
+          settings: {
+            ...currentJobSettings,
+            approvedPosts: approvedPosts,
+            autoPost: true
+          }
+        })
+      });
+
+      if (result.success) {
+        alert(`Successfully scheduled ${approvedPosts.length} posts!`);
+        setShowPostApproval(false);
+        refetch(); // Refresh the jobs list
+      }
+
+    } catch (error) {
+      console.error('❌ Scheduling failed:', error);
+      alert(`Failed to schedule posts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
       setActionLoading(null);
     }
   };
@@ -122,18 +284,30 @@ const BotControl: React.FC = () => {
             </div>
           </div>
           
-          <button
-            onClick={() => setShowScheduler(true)}
-            disabled={actionLoading === 'create'}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200"
-          >
-            {actionLoading === 'create' ? (
-              <RefreshCw className="h-4 w-4 animate-spin" />
-            ) : (
-              <Play className="h-4 w-4" />
+          <div className="flex space-x-3">
+            <button
+              onClick={() => setShowScheduler(true)}
+              disabled={actionLoading === 'create'}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200"
+            >
+              {actionLoading === 'create' ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Calendar className="h-4 w-4" />
+              )}
+              <span>{actionLoading === 'create' ? 'Creating...' : 'New Job'}</span>
+            </button>
+
+            {generatedPosts.length > 0 && (
+              <button
+                onClick={() => setShowPostApproval(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-200"
+              >
+                <Eye className="h-4 w-4" />
+                <span>Review Posts ({generatedPosts.filter(p => p.approved === null).length})</span>
+              </button>
             )}
-            <span>{actionLoading === 'create' ? 'Creating...' : 'New Job'}</span>
-          </button>
+          </div>
         </div>
 
         {/* Quick Stats */}
@@ -199,17 +373,555 @@ const BotControl: React.FC = () => {
         )}
       </div>
 
-      {/* Job Scheduler Modal */}
+      {/* Enhanced Job Scheduler Modal */}
       {showScheduler && (
-        <JobScheduler
+        <EnhancedJobScheduler
           onClose={() => setShowScheduler(false)}
           onCreateJob={createNewJob}
-          loading={actionLoading === 'create'}
+          onCreateJobWithApproval={createJobWithApproval}
+          loading={actionLoading === 'create' || actionLoading === 'generate-posts'}
+        />
+      )}
+
+      {/* Post Approval Modal */}
+      {showPostApproval && (
+        <PostApprovalModal
+          posts={generatedPosts}
+          onApprove={approvePost}
+          onReject={rejectPost}
+          onSchedule={scheduleApprovedPosts}
+          onClose={() => setShowPostApproval(false)}
+          loading={actionLoading === 'schedule'}
         />
       )}
     </div>
   );
 };
+
+// Enhanced Job Scheduler with post approval option
+interface EnhancedJobSchedulerProps {
+  onClose: () => void;
+  onCreateJob: (type: 'posting' | 'replying', settings: any) => void;
+  onCreateJobWithApproval: (settings: JobSettings) => void;
+  loading: boolean;
+}
+
+const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({ 
+  onClose, 
+  onCreateJob, 
+  onCreateJobWithApproval, 
+  loading 
+}) => {
+  const [jobType, setJobType] = useState<'posting' | 'replying'>('posting');
+  const [useApprovalWorkflow, setUseApprovalWorkflow] = useState(true);
+  const [newTopic, setNewTopic] = useState('');
+  
+  const [settings, setSettings] = useState({
+    // Posting settings
+    postsPerDay: 5,
+    topics: ['Pokemon TCG'],
+    postingTimeStart: '09:00',
+    postingTimeEnd: '17:00',
+    contentTypes: {
+      cardPulls: true,
+      deckBuilding: true,
+      marketAnalysis: true,
+      tournaments: false
+    },
+    
+    // Reply settings
+    keywords: ['Pokemon', 'TCG', 'Charizard', 'Pikachu'],
+    maxRepliesPerHour: 10,
+    replyTypes: {
+      helpful: true,
+      engaging: true,
+      promotional: false
+    }
+  });
+
+  const addTopic = () => {
+    if (newTopic.trim() && !settings.topics.includes(newTopic.trim())) {
+      setSettings(prev => ({
+        ...prev,
+        topics: [...prev.topics, newTopic.trim()]
+      }));
+      setNewTopic('');
+    }
+  };
+
+  const removeTopic = (topic: string) => {
+    setSettings(prev => ({
+      ...prev,
+      topics: prev.topics.filter(t => t !== topic)
+    }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (jobType === 'posting' && useApprovalWorkflow) {
+      // Use the enhanced workflow with post approval
+      const jobSettings: JobSettings = {
+        postsPerDay: settings.postsPerDay,
+        topics: settings.topics,
+        postingTimeStart: settings.postingTimeStart,
+        postingTimeEnd: settings.postingTimeEnd,
+        contentTypes: settings.contentTypes
+      };
+      onCreateJobWithApproval(jobSettings);
+    } else {
+      // Use the original workflow
+      onCreateJob(jobType, settings);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-semibold text-gray-900">Create New Bot Job</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Job Type Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              What should the bot do?
+            </label>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setJobType('posting')}
+                className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+                  jobType === 'posting'
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <MessageSquare className="h-6 w-6 text-blue-600 mx-auto mb-2" />
+                <p className="font-medium">Post Original Content</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  Create and publish Pokemon TCG posts
+                </p>
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setJobType('replying')}
+                className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+                  jobType === 'replying'
+                    ? 'border-green-500 bg-green-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <Reply className="h-6 w-6 text-green-600 mx-auto mb-2" />
+                <p className="font-medium">Reply to Others</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  Engage with other Pokemon TCG posts
+                </p>
+              </button>
+            </div>
+          </div>
+
+          {/* Approval Workflow Toggle (only for posting) */}
+          {jobType === 'posting' && (
+            <div className="bg-blue-50 rounded-lg p-4">
+              <label className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  checked={useApprovalWorkflow}
+                  onChange={(e) => setUseApprovalWorkflow(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <div>
+                  <span className="text-sm font-medium text-blue-900">
+                    Use Post Approval Workflow
+                  </span>
+                  <p className="text-xs text-blue-700">
+                    Generate posts for review before scheduling (Recommended)
+                  </p>
+                </div>
+              </label>
+            </div>
+          )}
+
+          {/* Job-specific settings */}
+          {jobType === 'posting' ? (
+            <EnhancedPostingSettings 
+              settings={settings} 
+              onChange={setSettings}
+              newTopic={newTopic}
+              setNewTopic={setNewTopic}
+              addTopic={addTopic}
+              removeTopic={removeTopic}
+            />
+          ) : (
+            <ReplyingSettings settings={settings} onChange={setSettings} />
+          )}
+
+          {/* Submit buttons */}
+          <div className="flex space-x-4 pt-4 border-t border-gray-200">
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200"
+            >
+              {loading ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : useApprovalWorkflow && jobType === 'posting' ? (
+                <Eye className="h-4 w-4" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              <span>
+                {loading ? 'Processing...' : 
+                 useApprovalWorkflow && jobType === 'posting' ? 'Generate for Approval' : 'Start Job'
+                }
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Enhanced Posting Settings with topics management
+const EnhancedPostingSettings: React.FC<{
+  settings: any;
+  onChange: (settings: any) => void;
+  newTopic: string;
+  setNewTopic: (topic: string) => void;
+  addTopic: () => void;
+  removeTopic: (topic: string) => void;
+}> = ({ settings, onChange, newTopic, setNewTopic, addTopic, removeTopic }) => {
+  return (
+    <div className="space-y-6">
+      {/* Posts per day */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Posts per day: {settings.postsPerDay}
+        </label>
+        <input
+          type="range"
+          min="1"
+          max="20"
+          value={settings.postsPerDay}
+          onChange={(e) => onChange({
+            ...settings,
+            postsPerDay: parseInt(e.target.value)
+          })}
+          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+        />
+        <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <span>1</span>
+          <span>10</span>
+          <span>20</span>
+        </div>
+      </div>
+
+      {/* Posting time range */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Posting Hours
+        </label>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs text-gray-500">Start Time</label>
+            <input
+              type="time"
+              value={settings.postingTimeStart}
+              onChange={(e) => onChange({
+                ...settings,
+                postingTimeStart: e.target.value
+              })}
+              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500">End Time</label>
+            <input
+              type="time"
+              value={settings.postingTimeEnd}
+              onChange={(e) => onChange({
+                ...settings,
+                postingTimeEnd: e.target.value
+              })}
+              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Topics */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Topics</label>
+        <div className="flex gap-2 mb-3">
+          <input
+            type="text"
+            value={newTopic}
+            onChange={(e) => setNewTopic(e.target.value)}
+            placeholder="Add new topic..."
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            onKeyPress={(e) => e.key === 'Enter' && addTopic()}
+          />
+          <button
+            type="button"
+            onClick={addTopic}
+            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {settings.topics.map((topic: string) => (
+            <span
+              key={topic}
+              className="bg-blue-100 text-blue-800 px-3 py-1 rounded-lg text-sm flex items-center gap-2"
+            >
+              {topic}
+              <button
+                type="button"
+                onClick={() => removeTopic(topic)}
+                className="text-blue-600 hover:text-blue-800"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Content Types */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-3">
+          Content Types to Post
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          {Object.entries(settings.contentTypes).map(([type, enabled]) => (
+            <label key={type} className="flex items-center justify-between">
+              <span className="text-sm text-gray-700 capitalize">
+                {type.replace(/([A-Z])/g, ' $1').trim()}
+              </span>
+              <input
+                type="checkbox"
+                checked={enabled as boolean}
+                onChange={(e) => onChange({
+                  ...settings,
+                  contentTypes: {
+                    ...settings.contentTypes,
+                    [type]: e.target.checked
+                  }
+                })}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+              />
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Post Approval Modal Component
+interface PostApprovalModalProps {
+  posts: GeneratedPost[];
+  onApprove: (postId: string) => void;
+  onReject: (postId: string) => void;
+  onSchedule: () => void;
+  onClose: () => void;
+  loading: boolean;
+}
+
+const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
+  posts,
+  onApprove,
+  onReject,
+  onSchedule,
+  onClose,
+  loading
+}) => {
+  const approvedCount = posts.filter(p => p.approved === true).length;
+  const rejectedCount = posts.filter(p => p.approved === false).length;
+  const pendingCount = posts.filter(p => p.approved === null).length;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-semibold text-gray-900">Review & Approve Posts</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          
+          {/* Stats bar */}
+          <div className="mt-4 grid grid-cols-4 gap-4 text-sm">
+            <div className="bg-blue-50 rounded-lg p-3 text-center">
+              <div className="font-semibold text-blue-900">{posts.length}</div>
+              <div className="text-blue-700">Total</div>
+            </div>
+            <div className="bg-green-50 rounded-lg p-3 text-center">
+              <div className="font-semibold text-green-900">{approvedCount}</div>
+              <div className="text-green-700">Approved</div>
+            </div>
+            <div className="bg-red-50 rounded-lg p-3 text-center">
+              <div className="font-semibold text-red-900">{rejectedCount}</div>
+              <div className="text-red-700">Rejected</div>
+            </div>
+            <div className="bg-yellow-50 rounded-lg p-3 text-center">
+              <div className="font-semibold text-yellow-900">{pendingCount}</div>
+              <div className="text-yellow-700">Pending</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Posts list */}
+        <div className="p-6 space-y-4 max-h-96 overflow-y-auto">
+          {posts.map((post) => (
+            <div
+              key={post.id}
+              className={`p-4 border-2 rounded-lg transition-all duration-200 ${
+                post.approved === true
+                  ? 'border-green-200 bg-green-50'
+                  : post.approved === false
+                  ? 'border-red-200 bg-red-50'
+                  : 'border-gray-200 bg-white hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1 mr-4">
+                  {/* Post metadata */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                      {post.topic}
+                    </span>
+                    <span className="text-xs text-gray-500 flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {post.scheduledTime}
+                    </span>
+                    {post.mentions_tradeup && (
+                      <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
+                        TradeUp Mention
+                      </span>
+                    )}
+                    {post.engagement_score && (
+                      <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+                        Score: {(post.engagement_score * 100).toFixed(0)}%
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Post content */}
+                  <p className="text-gray-900 mb-3 leading-relaxed">{post.content}</p>
+
+                  {/* Hashtags */}
+                  {post.hashtags && post.hashtags.length > 0 && (
+                    <div className="flex gap-1 flex-wrap">
+                      {post.hashtags.map((tag, i) => (
+                        <span key={i} className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Action buttons */}
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => onApprove(post.id)}
+                    disabled={post.approved === true}
+                    className={`p-2 rounded-lg transition-all duration-200 ${
+                      post.approved === true
+                        ? 'bg-green-600 text-white cursor-default'
+                        : 'bg-green-100 text-green-800 hover:bg-green-200 hover:scale-105'
+                    }`}
+                    title="Approve post"
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => onReject(post.id)}
+                    disabled={post.approved === false}
+                    className={`p-2 rounded-lg transition-all duration-200 ${
+                      post.approved === false
+                        ? 'bg-red-600 text-white cursor-default'
+                        : 'bg-red-100 text-red-800 hover:bg-red-200 hover:scale-105'
+                    }`}
+                    title="Reject post"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Approval status indicator */}
+              {post.approved !== null && (
+                <div className={`mt-3 pt-3 border-t ${
+                  post.approved ? 'border-green-200' : 'border-red-200'
+                }`}>
+                  <span className={`text-xs font-medium ${
+                    post.approved ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    {post.approved ? '✓ Approved for scheduling' : '✗ Rejected - will not be posted'}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Action buttons */}
+        <div className="p-6 border-t border-gray-200 bg-gray-50">
+          <div className="flex gap-4">
+            <button
+              onClick={onSchedule}
+              disabled={loading || approvedCount === 0}
+              className="flex-1 flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            >
+              {loading ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Calendar className="h-4 w-4" />
+              )}
+              <span>
+                {loading ? 'Scheduling...' : `Schedule ${approvedCount} Approved Posts`}
+              </span>
+            </button>
+            <button
+              onClick={onClose}
+              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors duration-200"
+            >
+              Cancel
+            </button>
+          </div>
+          
+          {approvedCount === 0 && (
+            <p className="text-sm text-gray-500 text-center mt-3">
+              Please approve at least one post before scheduling
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Existing components (JobCard, ReplyingSettings) remain the same...
 
 interface JobCardProps {
   job: BotJob;
@@ -314,235 +1026,6 @@ const JobCard: React.FC<JobCardProps> = ({ job, onAction, actionLoading }) => {
             <span className="text-gray-500">Success Rate:</span>
             <p className="font-medium">{job.stats.successRate}%</p>
           </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-interface JobSchedulerProps {
-  onClose: () => void;
-  onCreateJob: (type: 'posting' | 'replying', settings: any) => void;
-  loading: boolean;
-}
-
-const JobScheduler: React.FC<JobSchedulerProps> = ({ onClose, onCreateJob, loading }) => {
-  const [jobType, setJobType] = useState<'posting' | 'replying'>('posting');
-  const [settings, setSettings] = useState({
-    // Posting settings
-    postsPerDay: 12,
-    postingHours: { start: 9, end: 21 },
-    contentTypes: {
-      cardPulls: true,
-      deckBuilding: true,
-      marketAnalysis: true,
-      tournaments: true
-    },
-    
-    // Reply settings
-    keywords: ['Pokemon', 'TCG', 'Charizard', 'Pikachu'],
-    maxRepliesPerHour: 10,
-    replyTypes: {
-      helpful: true,
-      engaging: true,
-      promotional: false
-    }
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log('Submitting job creation:', { type: jobType, settings });
-    onCreateJob(jobType, settings);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-gray-900">Create New Bot Job</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-              <RefreshCw className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Job Type Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              What should the bot do?
-            </label>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => setJobType('posting')}
-                className={`p-4 rounded-lg border-2 transition-all duration-200 ${
-                  jobType === 'posting'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <MessageSquare className="h-6 w-6 text-blue-600 mx-auto mb-2" />
-                <p className="font-medium">Post Original Content</p>
-                <p className="text-xs text-gray-600 mt-1">
-                  Create and publish Pokemon TCG posts
-                </p>
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => setJobType('replying')}
-                className={`p-4 rounded-lg border-2 transition-all duration-200 ${
-                  jobType === 'replying'
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <Reply className="h-6 w-6 text-green-600 mx-auto mb-2" />
-                <p className="font-medium">Reply to Others</p>
-                <p className="text-xs text-gray-600 mt-1">
-                  Engage with other Pokemon TCG posts
-                </p>
-              </button>
-            </div>
-          </div>
-
-          {/* Job-specific settings */}
-          {jobType === 'posting' ? (
-            <PostingSettings settings={settings} onChange={setSettings} />
-          ) : (
-            <ReplyingSettings settings={settings} onChange={setSettings} />
-          )}
-
-          {/* Submit buttons */}
-          <div className="flex space-x-4 pt-4 border-t border-gray-200">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200"
-            >
-              {loading ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-              <span>{loading ? 'Creating...' : 'Start Job'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-const PostingSettings: React.FC<{ settings: any; onChange: (settings: any) => void }> = ({
-  settings,
-  onChange
-}) => {
-  return (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Posts per day: {settings.postsPerDay}
-        </label>
-        <input
-          type="range"
-          min="1"
-          max="50"
-          value={settings.postsPerDay}
-          onChange={(e) => onChange({
-            ...settings,
-            postsPerDay: parseInt(e.target.value)
-          })}
-          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-        />
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
-          <span>1</span>
-          <span>25</span>
-          <span>50</span>
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Active Hours
-        </label>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs text-gray-500">Start Time</label>
-            <select
-              value={settings.postingHours.start}
-              onChange={(e) => onChange({
-                ...settings,
-                postingHours: {
-                  ...settings.postingHours,
-                  start: parseInt(e.target.value)
-                }
-              })}
-              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              {Array.from({ length: 24 }, (_, i) => (
-                <option key={i} value={i}>
-                  {i.toString().padStart(2, '0')}:00
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-gray-500">End Time</label>
-            <select
-              value={settings.postingHours.end}
-              onChange={(e) => onChange({
-                ...settings,
-                postingHours: {
-                  ...settings.postingHours,
-                  end: parseInt(e.target.value)
-                }
-              })}
-              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              {Array.from({ length: 24 }, (_, i) => (
-                <option key={i} value={i}>
-                  {i.toString().padStart(2, '0')}:00
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-3">
-          Content Types to Post
-        </label>
-        <div className="space-y-2">
-          {Object.entries(settings.contentTypes).map(([type, enabled]) => (
-            <label key={type} className="flex items-center justify-between">
-              <span className="text-sm text-gray-700 capitalize">
-                {type.replace(/([A-Z])/g, ' $1').trim()}
-              </span>
-              <input
-                type="checkbox"
-                checked={enabled as boolean}
-                onChange={(e) => onChange({
-                  ...settings,
-                  contentTypes: {
-                    ...settings.contentTypes,
-                    [type]: e.target.checked
-                  }
-                })}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-              />
-            </label>
-          ))}
         </div>
       </div>
     </div>
