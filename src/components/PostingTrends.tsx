@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useApi, useNextRefreshTime } from '../hooks/useApi';
 
 // Static fallback data in case API fails
 const fallbackData = [
@@ -37,15 +38,34 @@ interface ApiResponse {
 }
 
 const PostingTrends: React.FC = () => {
-  const [data, setData] = useState<PostingData[]>(fallbackData);
-  const [loading, setLoading] = useState(false);
-  const [lastFetch, setLastFetch] = useState<Date | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Use the centralized useApi hook - it automatically handles 20-minute intervals!
+  const { data: apiData, loading, error, lastFetch } = useApi<ApiResponse>('/api/posts?limit=100&offset=0');
+  const nextRefresh = useNextRefreshTime(lastFetch);
 
-  // API base URL - adjust this to match your backend URL
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://your-railway-app.railway.app';
+  // Process API data into chart format
+  const data = useMemo((): PostingData[] => {
+    if (!apiData?.posts || !Array.isArray(apiData.posts)) {
+      console.warn('No valid API data for posting trends, using fallback data');
+      return fallbackData;
+    }
 
-  const processApiData = (posts: ApiPost[]): PostingData[] => {
+    console.log('Processing posting trends data from API...');
+
+    // Filter to last 7 days
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    const recentPosts = apiData.posts.filter(post => {
+      try {
+        const postDate = new Date(post.timestamp);
+        return postDate >= oneWeekAgo;
+      } catch {
+        return false;
+      }
+    });
+
+    console.log(`Filtered to ${recentPosts.length} posts from last 7 days for posting trends`);
+
     // Group posts by day of week
     const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const groupedData: { [key: string]: { posts: number; totalEngagement: number; postsList: ApiPost[] } } = {};
@@ -56,7 +76,7 @@ const PostingTrends: React.FC = () => {
     });
 
     // Process posts
-    posts.forEach(post => {
+    recentPosts.forEach(post => {
       try {
         const postDate = new Date(post.timestamp);
         const dayName = daysOfWeek[postDate.getDay()];
@@ -81,100 +101,28 @@ const PostingTrends: React.FC = () => {
     // Convert to chart format (Monday to Sunday order for business week)
     const orderedDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     
-    return orderedDays.map(day => ({
+    const processedData = orderedDays.map(day => ({
       day,
       posts: groupedData[day].posts,
       engagement: groupedData[day].posts > 0 
         ? Math.round((groupedData[day].totalEngagement / groupedData[day].posts) * 10) / 10
         : 0
     }));
-  };
 
-  const fetchPostingData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      console.log('Fetching posting trends data...');
-
-      // Fetch recent posts from your API (last 7 days worth)
-      const response = await fetch(`${API_BASE_URL}/api/posts?limit=100&offset=0`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-      }
-
-      const apiData: ApiResponse = await response.json();
-      
-      console.log('Received API data:', apiData);
-
-      if (apiData.posts && Array.isArray(apiData.posts)) {
-        // Filter to last 7 days
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-        const recentPosts = apiData.posts.filter(post => {
-          try {
-            const postDate = new Date(post.timestamp);
-            return postDate >= oneWeekAgo;
-          } catch {
-            return false;
-          }
-        });
-
-        console.log(`Filtered to ${recentPosts.length} posts from last 7 days`);
-
-        const processedData = processApiData(recentPosts);
-        setData(processedData);
-        setLastFetch(new Date());
-
-        console.log('Updated chart data:', processedData);
-      } else {
-        console.warn('Invalid API response format, using fallback data');
-        setData(fallbackData);
-      }
-
-    } catch (err) {
-      console.error('Error fetching posting data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch data');
-      
-      // Keep existing data on error, don't revert to fallback
-      if (data === fallbackData) {
-        setData(fallbackData);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [API_BASE_URL, data]);
-
-  // Initial fetch and setup interval
-  useEffect(() => {
-    // Fetch immediately on mount
-    fetchPostingData();
-
-    // Set up 20-minute interval (20 * 60 * 1000 = 1,200,000 ms)
-    const interval = setInterval(() => {
-      console.log('20-minute interval: Fetching fresh posting data...');
-      fetchPostingData();
-    }, 20 * 60 * 1000);
-
-    // Cleanup interval on unmount
-    return () => {
-      clearInterval(interval);
-      console.log('PostingTrends component unmounted, cleared interval');
-    };
-  }, [fetchPostingData]);
+    console.log('Processed posting trends chart data:', processedData);
+    return processedData;
+  }, [apiData]);
 
   // Calculate total posts for the week
-  const totalPosts = data.reduce((sum, day) => sum + day.posts, 0);
-  const avgEngagement = data.length > 0 
-    ? Math.round((data.reduce((sum, day) => sum + day.engagement, 0) / data.length) * 10) / 10 
-    : 0;
+  const { totalPosts, avgEngagement } = useMemo(() => {
+    const totals = {
+      totalPosts: data.reduce((sum, day) => sum + day.posts, 0),
+      avgEngagement: data.length > 0 
+        ? Math.round((data.reduce((sum, day) => sum + day.engagement, 0) / data.length) * 10) / 10 
+        : 0
+    };
+    return totals;
+  }, [data]);
 
   return (
     <div className="bg-white rounded-xl p-6 shadow-sm">
@@ -245,7 +193,7 @@ const PostingTrends: React.FC = () => {
               radius={[4, 4, 0, 0]}
               name="posts"
             />
-            {/* Optionally add engagement as a second bar or line */}
+            {/* Engagement as a second bar */}
             <Bar 
               dataKey="engagement" 
               fill="#10b981" 
@@ -256,11 +204,11 @@ const PostingTrends: React.FC = () => {
         </ResponsiveContainer>
       </div>
 
-      {/* Data refresh info */}
+      {/* Data refresh info - now uses centralized timing */}
       <div className="mt-4 text-xs text-gray-500 text-center">
-        Data refreshes every 20 minutes • Next update: {
-          lastFetch 
-            ? new Date(lastFetch.getTime() + 20 * 60 * 1000).toLocaleTimeString()
+        Auto-refreshes every 20 minutes • Next update: {
+          nextRefresh 
+            ? nextRefresh.toLocaleTimeString()
             : 'Soon'
         }
       </div>

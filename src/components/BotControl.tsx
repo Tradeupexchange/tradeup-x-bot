@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, Square, RefreshCw, AlertCircle, CheckCircle, MessageSquare, Reply, Settings, Clock, Target, Eye, Check, X, Calendar, Plus, Trash2 } from 'lucide-react';
+import { useApi, useNextRefreshTime, apiCall } from '../hooks/useApi';
 
 interface BotJob {
   id: string;
@@ -54,10 +55,10 @@ interface JobSettings {
 }
 
 const BotControl: React.FC = () => {
-  const [status, setStatus] = useState<BotStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [lastFetch, setLastFetch] = useState<Date | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Use the centralized useApi hook - it automatically handles 20-minute intervals!
+  const { data: status, loading, error, lastFetch, refetch } = useApi<BotStatus>('/api/bot-status');
+  const nextRefresh = useNextRefreshTime(lastFetch);
+  
   const [jobs, setJobs] = useState<BotJob[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showScheduler, setShowScheduler] = useState(false);
@@ -65,94 +66,13 @@ const BotControl: React.FC = () => {
   const [generatedPosts, setGeneratedPosts] = useState<GeneratedPost[]>([]);
   const [currentJobSettings, setCurrentJobSettings] = useState<JobSettings | null>(null);
 
-  // API base URL
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://your-railway-app.railway.app';
-
-  const apiCall = async (endpoint: string, options: RequestInit = {}) => {
-    const url = `${API_BASE_URL}${endpoint}`;
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
-  };
-
-  const fetchBotStatus = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      console.log('Fetching bot status...');
-
-      const statusData = await apiCall('/api/bot-status');
-      
-      console.log('Received bot status:', statusData);
-
-      setStatus(statusData);
-      
-      // Update jobs if they exist in the status
-      if (statusData.jobs && Array.isArray(statusData.jobs)) {
-        setJobs(statusData.jobs);
-      }
-
-      setLastFetch(new Date());
-
-    } catch (err) {
-      console.error('Error fetching bot status:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch bot status');
-      
-      // Don't clear existing data on error, just show error message
-      if (!status) {
-        // Only set fallback data if we have no existing data
-        setStatus({
-          running: false,
-          uptime: null,
-          lastRun: null,
-          stats: {
-            postsToday: 0,
-            repliesToday: 0,
-            successRate: 100
-          },
-          jobs: [],
-          timestamp: new Date().toISOString()
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [API_BASE_URL, status]);
-
-  // Initial fetch and setup 20-minute interval
+  // Update jobs when status changes
   useEffect(() => {
-    // Fetch immediately on mount
-    console.log('🚀 BotControl: Fetching initial bot status...');
-    fetchBotStatus();
-
-    // Set up 20-minute interval (20 * 60 * 1000 = 1,200,000 ms)
-    const interval = setInterval(() => {
-      console.log('⏰ BotControl: 20-minute interval - Fetching fresh bot status...');
-      fetchBotStatus();
-    }, 20 * 60 * 1000);
-
-    // Cleanup interval on unmount
-    return () => {
-      clearInterval(interval);
-      console.log('BotControl component unmounted, cleared interval');
-    };
-  }, [fetchBotStatus]);
-
-  const refetch = useCallback(() => {
-    console.log('🔄 BotControl: Manual refetch triggered');
-    fetchBotStatus();
-  }, [fetchBotStatus]);
+    if (status?.jobs && Array.isArray(status.jobs)) {
+      setJobs(status.jobs);
+      console.log('Updated jobs from API:', status.jobs);
+    }
+  }, [status]);
 
   const handleJobAction = async (jobId: string, action: 'start' | 'stop' | 'pause') => {
     try {
@@ -450,11 +370,11 @@ const BotControl: React.FC = () => {
           </div>
         </div>
 
-        {/* Next update info */}
+        {/* Next update info - now uses centralized timing */}
         <div className="mt-4 text-xs text-gray-500 text-center">
-          Data refreshes every 20 minutes • Next update: {
-            lastFetch 
-              ? new Date(lastFetch.getTime() + 20 * 60 * 1000).toLocaleTimeString()
+          Auto-refreshes every 20 minutes • Next update: {
+            nextRefresh 
+              ? nextRefresh.toLocaleTimeString()
               : 'Soon'
           }
         </div>

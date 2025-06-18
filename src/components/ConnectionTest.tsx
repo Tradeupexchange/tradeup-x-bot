@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AlertCircle, CheckCircle, RefreshCw, ExternalLink, Info, Globe, AlertTriangle, Server } from 'lucide-react';
+import { getRefreshInterval } from '../hooks/useApi';
 
 const ConnectionTest: React.FC = () => {
   const [status, setStatus] = useState<'testing' | 'connected' | 'error'>('testing');
@@ -10,6 +11,9 @@ const ConnectionTest: React.FC = () => {
   const [corsIssues, setCorsIssues] = useState<boolean>(false);
   const [lastTest, setLastTest] = useState<Date | null>(null);
   const [manualTest, setManualTest] = useState<boolean>(false);
+
+  // Get centralized refresh interval settings
+  const refreshConfig = getRefreshInterval();
 
   const normalizeUrl = useCallback((url: string): string => {
     // Remove any trailing slashes
@@ -208,20 +212,22 @@ const ConnectionTest: React.FC = () => {
     testConnection(false);
   }, [normalizeUrl, testConnection]);
 
-  // Set up 20-minute interval for automatic testing
+  // Set up interval using centralized timing
   useEffect(() => {
-    // Set up 20-minute interval (20 * 60 * 1000 = 1,200,000 ms)
+    console.log(`⏰ ConnectionTest: Using centralized ${refreshConfig.displayText} interval for connection testing`);
+    
+    // Use the same interval as other components
     const interval = setInterval(() => {
-      console.log('⏰ ConnectionTest: 20-minute interval - Running automatic connection test...');
+      console.log(`⏰ ConnectionTest: ${refreshConfig.displayText} interval - Running automatic connection test...`);
       testConnection(false);
-    }, 20 * 60 * 1000);
+    }, refreshConfig.milliseconds);
 
     // Cleanup interval on unmount
     return () => {
       clearInterval(interval);
       console.log('ConnectionTest component unmounted, cleared interval');
     };
-  }, [testConnection]);
+  }, [testConnection, refreshConfig.milliseconds, refreshConfig.displayText]);
 
   const handleManualTest = () => {
     console.log('🔄 ConnectionTest: Manual test triggered by user');
@@ -238,7 +244,7 @@ const ConnectionTest: React.FC = () => {
 
   const getNextTestTime = () => {
     if (lastTest) {
-      const nextTest = new Date(lastTest.getTime() + 20 * 60 * 1000);
+      const nextTest = new Date(lastTest.getTime() + refreshConfig.milliseconds);
       return nextTest.toLocaleTimeString();
     }
     return 'Soon';
@@ -314,7 +320,7 @@ const ConnectionTest: React.FC = () => {
           </div>
         </div>
 
-        {/* Test timing information */}
+        {/* Test timing information - now synced with centralized config */}
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-600">Last Test:</span>
           <span className="text-sm text-gray-800">
@@ -430,15 +436,15 @@ const ConnectionTest: React.FC = () => {
           <div className="flex items-start space-x-2">
             <Info className="h-4 w-4 text-blue-600 mt-0.5" />
             <div className="text-xs text-blue-700">
-              <p><strong>Auto-Test Schedule:</strong></p>
+              <p><strong>Auto-Test Schedule (Synced with Data Components):</strong></p>
               <div className="grid grid-cols-2 gap-2 mt-1">
-                <div>Test Frequency: Every 20 minutes</div>
+                <div>Test Frequency: Every {refreshConfig.displayText}</div>
                 <div>Last Test: {lastTest ? lastTest.toLocaleString() : 'Not tested'}</div>
                 <div>Next Test: {getNextTestTime()}</div>
                 <div>Manual Override: Available anytime</div>
+                <div>Synced with: All data components</div>
                 <div>Environment: {import.meta.env.MODE}</div>
                 <div>Dev Mode: {import.meta.env.DEV ? 'Yes' : 'No'}</div>
-                <div>Raw URL: {import.meta.env.VITE_RAILWAY_API_URL || 'Not set'}</div>
                 <div>Normalized URL: {apiUrl}</div>
               </div>
             </div>

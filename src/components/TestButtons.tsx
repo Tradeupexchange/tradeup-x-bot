@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Play, MessageSquare, Settings, RefreshCw, AlertCircle } from 'lucide-react';
+import { Play, MessageSquare, RefreshCw, AlertCircle } from 'lucide-react';
 import { apiCall } from '../hooks/useApi';
 
 const TestButtons: React.FC = () => {
   const [loading, setLoading] = useState<string | null>(null);
   const [results, setResults] = useState<any[]>([]);
+  const [generatedContent, setGeneratedContent] = useState<string | null>(null);
 
   const addResult = (test: string, result: any, success: boolean) => {
     setResults(prev => [...prev, {
@@ -32,7 +33,20 @@ const TestButtons: React.FC = () => {
       });
       
       console.log('✅ Content generation result:', result);
-      addResult('Generate Content', result, true);
+      
+      if (result.success && result.content) {
+        // Store the generated content for potential reuse
+        const content = result.content.optimized_content || result.content.content || result.content;
+        setGeneratedContent(content);
+        console.log('💾 Stored generated content for reuse:', content);
+        
+        addResult('Generate Content', { 
+          content: content,
+          stored_for_reuse: true 
+        }, true);
+      } else {
+        addResult('Generate Content', result, false);
+      }
     } catch (error) {
       console.error('❌ Content generation failed:', error);
       addResult('Generate Content', error instanceof Error ? error.message : error, false);
@@ -41,123 +55,69 @@ const TestButtons: React.FC = () => {
     }
   };
 
-  const testPostToTwitter = async () => {
+  const testPostToInstagram = async () => {
     try {
       setLoading('post');
-      console.log('🧪 Testing Twitter posting...');
+      let contentToPost = generatedContent;
       
-      // First generate unique content
-      console.log('📝 Generating unique content...');
-      const contentResult = await apiCall('/api/generate-content', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          topic: `Pokemon TCG Test ${Date.now()}`,
-          count: 1
-        })
-      });
-      
-      console.log('✅ Content generated:', contentResult);
-      
-      if (contentResult.success && contentResult.content) {
-        // Use the generated content for posting
-        const postContent = contentResult.content.optimized_content || contentResult.content.content || contentResult.content;
+      // If no generated content exists, generate new content first
+      if (!contentToPost) {
+        console.log('📝 No existing content, generating new content...');
         
-        console.log('🐦 Posting to Twitter:', postContent);
-        
-        const result = await apiCall('/api/post-to-twitter', {
+        const contentResult = await apiCall('/api/generate-content', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            content: postContent
+            topic: `Pokemon TCG ${Date.now()}`,
+            count: 1
           })
         });
         
-        console.log('✅ Twitter post result:', result);
+        console.log('✅ Content generated for posting:', contentResult);
         
-        addResult('Post to Twitter', { 
-          generated_content: postContent,
-          post_result: result 
-        }, result.success || false);
+        if (contentResult.success && contentResult.content) {
+          contentToPost = contentResult.content.optimized_content || contentResult.content.content || contentResult.content;
+          setGeneratedContent(contentToPost); // Store for future use
+        } else {
+          throw new Error('Failed to generate content for posting');
+        }
       } else {
-        throw new Error('Failed to generate content for posting');
+        console.log('♻️ Reusing previously generated content:', contentToPost);
       }
-    } catch (error) {
-      console.error('❌ Twitter posting failed:', error);
-      addResult('Post to Twitter', error instanceof Error ? error.message : error, false);
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const testCreateJob = async () => {
-    try {
-      setLoading('job');
-      console.log('🧪 Testing job creation...');
       
-      const result = await apiCall('/api/bot-job/create', {
+      console.log('📸 Posting to Instagram:', contentToPost);
+      
+      // Note: Replace this with actual Instagram API endpoint when available
+      // For now, using the Twitter endpoint as placeholder
+      const result = await apiCall('/api/post-to-twitter', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          type: 'posting',
-          settings: {
-            postsPerDay: 5,
-            postingHours: { start: 9, end: 17 },
-            contentTypes: {
-              cardPulls: true,
-              deckBuilding: false,
-              marketAnalysis: true,
-              tournaments: false
-            }
-          }
+          content: contentToPost
         })
       });
       
-      console.log('✅ Job creation result:', result);
-      addResult('Create Job', result, result.success || false);
-    } catch (error) {
-      console.error('❌ Job creation failed:', error);
-      addResult('Create Job', error instanceof Error ? error.message : error, false);
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const testUpdateSettings = async () => {
-    try {
-      setLoading('settings');
-      console.log('🧪 Testing settings update...');
+      console.log('✅ Instagram post result:', result);
       
-      const result = await apiCall('/api/settings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          postsPerDay: 15,
-          keywords: ['Pokemon', 'TCG', 'Test'],
-          engagementMode: 'balanced',
-          autoReply: true,
-          contentTypes: {
-            cardPulls: true,
-            deckBuilding: true,
-            marketAnalysis: false,
-            tournaments: true
-          }
-        })
-      });
+      // Clear the stored content after successful posting
+      if (result.success) {
+        setGeneratedContent(null);
+        console.log('🧹 Cleared stored content after successful post');
+      }
       
-      console.log('✅ Settings update result:', result);
-      addResult('Update Settings', result, result.success || false);
+      addResult('Post to Instagram', { 
+        content_used: contentToPost,
+        was_reused: generatedContent !== null,
+        post_result: result 
+      }, result.success || false);
+      
     } catch (error) {
-      console.error('❌ Settings update failed:', error);
-      addResult('Update Settings', error instanceof Error ? error.message : error, false);
+      console.error('❌ Instagram posting failed:', error);
+      addResult('Post to Instagram', error instanceof Error ? error.message : error, false);
     } finally {
       setLoading(null);
     }
@@ -165,73 +125,63 @@ const TestButtons: React.FC = () => {
 
   const clearResults = () => {
     setResults([]);
+    setGeneratedContent(null);
+    console.log('🧹 Cleared all results and stored content');
   };
 
   return (
     <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">API Test Buttons</h3>
-        {results.length > 0 && (
+        <h3 className="text-lg font-semibold text-gray-900">Content Test Buttons</h3>
+        {(results.length > 0 || generatedContent) && (
           <button
             onClick={clearResults}
             className="text-sm text-gray-500 hover:text-gray-700"
           >
-            Clear Results
+            Clear All
           </button>
         )}
       </div>
       
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      {/* Status indicator for stored content */}
+      {generatedContent && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-800">
+            <strong>Content ready:</strong> Generated content is stored and ready for posting
+          </p>
+          <p className="text-xs text-blue-600 mt-1 truncate">
+            Preview: "{generatedContent.substring(0, 80)}..."
+          </p>
+        </div>
+      )}
+      
+      <div className="grid grid-cols-2 gap-4 mb-6">
         <button
           onClick={testGenerateContent}
           disabled={loading === 'generate'}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className="flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200"
         >
           {loading === 'generate' ? (
-            <RefreshCw className="h-4 w-4 animate-spin" />
+            <RefreshCw className="h-5 w-5 animate-spin" />
           ) : (
-            <MessageSquare className="h-4 w-4" />
+            <MessageSquare className="h-5 w-5" />
           )}
-          <span>Generate</span>
+          <span className="font-medium">Generate</span>
         </button>
 
         <button
-          onClick={testPostToTwitter}
+          onClick={testPostToInstagram}
           disabled={loading === 'post'}
-          className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+          className="flex items-center justify-center space-x-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors duration-200"
         >
           {loading === 'post' ? (
-            <RefreshCw className="h-4 w-4 animate-spin" />
+            <RefreshCw className="h-5 w-5 animate-spin" />
           ) : (
-            <Play className="h-4 w-4" />
+            <Play className="h-5 w-5" />
           )}
-          <span>Post (Unique)</span>
-        </button>
-
-        <button
-          onClick={testCreateJob}
-          disabled={loading === 'job'}
-          className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
-        >
-          {loading === 'job' ? (
-            <RefreshCw className="h-4 w-4 animate-spin" />
-          ) : (
-            <Play className="h-4 w-4" />
-          )}
-          <span>Create Job</span>
-        </button>
-
-        <button
-          onClick={testUpdateSettings}
-          disabled={loading === 'settings'}
-          className="flex items-center space-x-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
-        >
-          {loading === 'settings' ? (
-            <RefreshCw className="h-4 w-4 animate-spin" />
-          ) : (
-            <Settings className="h-4 w-4" />
-          )}
-          <span>Settings</span>
+          <span className="font-medium">
+            {generatedContent ? 'Post (Stored)' : 'Post (Generate + Post)'}
+          </span>
         </button>
       </div>
 
@@ -268,12 +218,13 @@ const TestButtons: React.FC = () => {
         <div className="flex items-start space-x-2">
           <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5" />
           <div className="text-sm text-yellow-800">
-            <p><strong>Testing Notes:</strong></p>
+            <p><strong>How it works:</strong></p>
             <ul className="list-disc list-inside mt-1 space-y-1">
-              <li>The "Generate" button tests content generation</li>
-              <li>The "Post (Unique)" button generates fresh content then posts to Twitter</li>
+              <li><strong>Generate:</strong> Creates content and stores it for reuse</li>
+              <li><strong>Post (when content stored):</strong> Uses the stored content to post</li>
+              <li><strong>Post (when no content):</strong> Generates new content then posts immediately</li>
+              <li>Content is cleared after successful posting or when clicking "Clear All"</li>
               <li>Check browser console for detailed logs</li>
-              <li>All requests include proper CORS headers</li>
             </ul>
           </div>
         </div>

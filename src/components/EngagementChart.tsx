@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { useApi, useNextRefreshTime } from '../hooks/useApi';
 
 interface EngagementChartProps {
   data?: any[]; // Keep this for backward compatibility but we'll override with API data
@@ -32,13 +33,9 @@ interface ApiResponse {
 }
 
 const EngagementChart: React.FC<EngagementChartProps> = ({ data }) => {
-  const [chartData, setChartData] = useState<EngagementData[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [lastFetch, setLastFetch] = useState<Date | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  // API base URL - adjust this to match your backend URL
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://your-railway-app.railway.app';
+  // Use the centralized useApi hook - it automatically handles 20-minute intervals!
+  const { data: apiData, loading, error, lastFetch } = useApi<ApiResponse>('/api/posts?limit=200&offset=0');
+  const nextRefresh = useNextRefreshTime(lastFetch);
 
   // Fallback data if API fails
   const fallbackData: EngagementData[] = [
@@ -51,11 +48,34 @@ const EngagementChart: React.FC<EngagementChartProps> = ({ data }) => {
     { date: '2024-01-07', likes: 89, retweets: 28, replies: 22, totalPosts: 5 },
   ];
 
-  const processApiData = (posts: ApiPost[]): EngagementData[] => {
+  // Process API data into chart format
+  const chartData = useMemo((): EngagementData[] => {
+    if (!apiData?.posts || !Array.isArray(apiData.posts)) {
+      console.warn('No valid API data, using fallback data');
+      return fallbackData;
+    }
+
+    console.log('Processing engagement data from API...');
+
+    // Filter to last 7 days
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    const recentPosts = apiData.posts.filter(post => {
+      try {
+        const postDate = new Date(post.timestamp);
+        return postDate >= oneWeekAgo;
+      } catch {
+        return false;
+      }
+    });
+
+    console.log(`Filtered to ${recentPosts.length} posts from last 7 days for engagement analysis`);
+
     // Group posts by date
     const dateGroups: { [key: string]: ApiPost[] } = {};
     
-    posts.forEach(post => {
+    recentPosts.forEach(post => {
       try {
         const postDate = new Date(post.timestamp);
         const dateKey = postDate.toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -95,96 +115,23 @@ const EngagementChart: React.FC<EngagementChartProps> = ({ data }) => {
         }
       });
 
-    return processedData.length > 0 ? processedData : fallbackData;
-  };
-
-  const fetchEngagementData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      console.log('Fetching engagement data...');
-
-      // Fetch posts from your API (get more posts to have enough data for 7 days)
-      const response = await fetch(`${API_BASE_URL}/api/posts?limit=200&offset=0`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-      }
-
-      const apiData: ApiResponse = await response.json();
-      
-      console.log('Received engagement API data:', apiData);
-
-      if (apiData.posts && Array.isArray(apiData.posts)) {
-        // Filter to last 7 days
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-        const recentPosts = apiData.posts.filter(post => {
-          try {
-            const postDate = new Date(post.timestamp);
-            return postDate >= oneWeekAgo;
-          } catch {
-            return false;
-          }
-        });
-
-        console.log(`Filtered to ${recentPosts.length} posts from last 7 days for engagement analysis`);
-
-        const processedData = processApiData(recentPosts);
-        setChartData(processedData);
-        setLastFetch(new Date());
-
-        console.log('Updated engagement chart data:', processedData);
-      } else {
-        console.warn('Invalid API response format for engagement data, using fallback');
-        setChartData(fallbackData);
-      }
-
-    } catch (err) {
-      console.error('Error fetching engagement data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch engagement data');
-      
-      // Keep existing data on error, don't revert to fallback if we already have data
-      if (chartData.length === 0) {
-        setChartData(fallbackData);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [API_BASE_URL, chartData.length]);
-
-  // Initial fetch and setup interval
-  useEffect(() => {
-    // Fetch immediately on mount
-    fetchEngagementData();
-
-    // Set up 20-minute interval (20 * 60 * 1000 = 1,200,000 ms)
-    const interval = setInterval(() => {
-      console.log('20-minute interval: Fetching fresh engagement data...');
-      fetchEngagementData();
-    }, 20 * 60 * 1000);
-
-    // Cleanup interval on unmount
-    return () => {
-      clearInterval(interval);
-      console.log('EngagementChart component unmounted, cleared interval');
-    };
-  }, [fetchEngagementData]);
+    const result = processedData.length > 0 ? processedData : fallbackData;
+    console.log('Processed engagement chart data:', result);
+    return result;
+  }, [apiData, fallbackData]);
 
   // Calculate totals for display
-  const totalLikes = chartData.reduce((sum, day) => sum + (day.likes * day.totalPosts), 0);
-  const totalRetweets = chartData.reduce((sum, day) => sum + (day.retweets * day.totalPosts), 0);
-  const totalReplies = chartData.reduce((sum, day) => sum + (day.replies * day.totalPosts), 0);
-  const avgLikesPerPost = chartData.length > 0 
-    ? Math.round((chartData.reduce((sum, day) => sum + day.likes, 0) / chartData.length) * 10) / 10 
-    : 0;
+  const { totalLikes, totalRetweets, totalReplies, avgLikesPerPost } = useMemo(() => {
+    const totals = {
+      totalLikes: chartData.reduce((sum, day) => sum + (day.likes * day.totalPosts), 0),
+      totalRetweets: chartData.reduce((sum, day) => sum + (day.retweets * day.totalPosts), 0),
+      totalReplies: chartData.reduce((sum, day) => sum + (day.replies * day.totalPosts), 0),
+      avgLikesPerPost: chartData.length > 0 
+        ? Math.round((chartData.reduce((sum, day) => sum + day.likes, 0) / chartData.length) * 10) / 10 
+        : 0
+    };
+    return totals;
+  }, [chartData]);
 
   return (
     <div className="bg-white rounded-xl p-6 shadow-sm">
@@ -313,11 +260,11 @@ const EngagementChart: React.FC<EngagementChartProps> = ({ data }) => {
         </ResponsiveContainer>
       </div>
 
-      {/* Data refresh info */}
+      {/* Data refresh info - now uses centralized timing */}
       <div className="mt-4 text-xs text-gray-500 text-center">
-        Data refreshes every 20 minutes • Next update: {
-          lastFetch 
-            ? new Date(lastFetch.getTime() + 20 * 60 * 1000).toLocaleTimeString()
+        Auto-refreshes every 20 minutes • Next update: {
+          nextRefresh 
+            ? nextRefresh.toLocaleTimeString()
             : 'Soon'
         }
       </div>
