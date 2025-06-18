@@ -6,7 +6,9 @@ function App() {
   return (
     <div className="min-h-screen w-full">
       <Header />
-      <Dashboard />
+      <main className="container mx-auto px-6 py-6">
+        <Dashboard />
+      </main>
     </div>
   );
 }
