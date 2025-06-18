@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import MetricsGrid from './MetricsGrid';
 import EngagementChart from './EngagementChart';
-import TopicAnalysis from './TopicAnalysis';
 import RecentPosts from './RecentPosts';
 import PostingTrends from './PostingTrends';
 import BotControl from './BotControl';
