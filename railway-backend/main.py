@@ -1,13 +1,14 @@
 """
 Pokemon TCG Bot Backend - Railway Deployment
 FastAPI backend for managing Pokemon TCG social media bot
+Enhanced with post approval workflow and frontend integration
 """
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 import os
 import json
 import uvicorn
@@ -42,6 +43,7 @@ except ImportError as e:
         def get_status(self): return {"status": "ok"}
         def get_all_jobs(self): return []
         def create_job(self, job_type, settings): return {"id": "dummy", "type": job_type}
+        def create_job_with_approval(self, settings): return {"posts": [], "job_settings": settings}
         def get_job(self, job_id): return {"id": job_id, "status": "stopped"}
         def start_job(self, job_id): pass
         def stop_job(self, job_id): return {"id": job_id, "status": "stopped"}
@@ -53,6 +55,11 @@ except ImportError as e:
         def get_engagement_data(self, days): return []
         def get_settings(self): return {"postsPerDay": 12, "keywords": ["Pokemon", "TCG"]}
         def update_settings(self, settings): return settings
+        def store_generated_posts(self, posts, settings): return True
+        def get_generated_posts(self): return []
+        def approve_post(self, post_id): return True
+        def reject_post(self, post_id): return True
+        def schedule_approved_posts(self): return {"scheduled_count": 0}
 
 try:
     from src.content_generator import generate_viral_content, optimize_content_for_engagement
@@ -138,27 +145,58 @@ app.add_middleware(
 # Global bot manager instance
 bot_manager = BotManager()
 
-# Pydantic models for request/response
+# Enhanced Pydantic models for request/response
+class ContentTypes(BaseModel):
+    cardPulls: bool = True
+    deckBuilding: bool = True
+    marketAnalysis: bool = True
+    tournaments: bool = False
+
+class ReplyTypes(BaseModel):
+    helpful: bool = True
+    engaging: bool = True
+    promotional: bool = False
+
 class JobSettings(BaseModel):
     postsPerDay: int = 12
-    postingHours: Dict[str, int] = {"start": 9, "end": 21}
-    contentTypes: Dict[str, bool] = {
-        "cardPulls": True,
-        "deckBuilding": True,
-        "marketAnalysis": True,
-        "tournaments": True
-    }
+    topics: List[str] = ["Pokemon TCG"]
+    postingTimeStart: str = "09:00"
+    postingTimeEnd: str = "17:00"
+    contentTypes: ContentTypes = ContentTypes()
     keywords: List[str] = ["Pokemon", "TCG", "Charizard", "Pikachu"]
     maxRepliesPerHour: int = 10
-    replyTypes: Dict[str, bool] = {
-        "helpful": True,
-        "engaging": True,
-        "promotional": False
-    }
+    replyTypes: ReplyTypes = ReplyTypes()
+    # New fields for approval workflow
+    approvedPosts: Optional[List[Dict[str, Any]]] = None
+    autoPost: bool = False
 
 class CreateJobRequest(BaseModel):
     type: str  # "posting" or "replying"
     settings: JobSettings
+
+class CreateJobWithApprovalRequest(BaseModel):
+    postsPerDay: int
+    topics: List[str]
+    postingTimeStart: str
+    postingTimeEnd: str
+    contentTypes: ContentTypes
+
+class GeneratedPost(BaseModel):
+    id: str
+    content: str
+    topic: str
+    approved: Optional[bool] = None  # null = pending, true = approved, false = rejected
+    scheduledTime: Optional[str] = None
+    engagement_score: Optional[float] = None
+    hashtags: Optional[List[str]] = None
+    mentions_tradeup: Optional[bool] = None
+
+class PostApprovalRequest(BaseModel):
+    postId: str
+    approved: bool
+
+class SchedulePostsRequest(BaseModel):
+    approvedPostIds: List[str]
 
 class GenerateContentRequest(BaseModel):
     topic: Optional[str] = None
@@ -306,16 +344,189 @@ async def get_bot_status():
             "error": str(e)
         }
 
-# Job management endpoints
+# Enhanced Job management endpoints
 @app.post("/api/bot-job/create")
 async def create_job(request: CreateJobRequest):
-    """Create a new bot job"""
+    """Create a new bot job - supports both regular and approval workflow"""
     try:
-        job = bot_manager.create_job(request.type, request.settings.dict())
+        # Check if this is an approval workflow job
+        if (request.type == "posting" and 
+            hasattr(request.settings, 'approvedPosts') and 
+            request.settings.approvedPosts is not None):
+            
+            # This is a job with pre-approved posts
+            logger.info("Creating job with pre-approved posts")
+            job = bot_manager.create_job(request.type, request.settings.dict())
+            
+        else:
+            # Regular job creation
+            logger.info(f"Creating regular {request.type} job")
+            job = bot_manager.create_job(request.type, request.settings.dict())
+        
         logger.info(f"Created job: {job}")
         return {"success": True, "job": job, "timestamp": datetime.now().isoformat()}
     except Exception as e:
         logger.error(f"Error creating job: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/bot-job/create-with-approval")
+async def create_job_with_approval(request: CreateJobWithApprovalRequest):
+    """Create a job with post approval workflow - generates posts for review"""
+    try:
+        logger.info("Creating job with approval workflow...")
+        
+        # Generate posts for approval
+        generated_posts = []
+        
+        for i in range(request.postsPerDay):
+            # Select random topic
+            import random
+            topic = random.choice(request.topics) if request.topics else "Pokemon TCG"
+            
+            # Generate content
+            try:
+                content_result = generate_viral_content(count=1, topic=topic)
+                if content_result and len(content_result) > 0:
+                    content_data = content_result[0]
+                    
+                    # Generate scheduled time
+                    start_time = request.postingTimeStart
+                    end_time = request.postingTimeEnd
+                    scheduled_time = generate_scheduled_time(i, request.postsPerDay, start_time, end_time)
+                    
+                    post = {
+                        "id": f"post-{int(datetime.now().timestamp())}-{i}",
+                        "content": content_data.get("content", f"Great Pokemon TCG content about {topic}!"),
+                        "topic": topic,
+                        "approved": None,  # Pending approval
+                        "scheduledTime": scheduled_time,
+                        "engagement_score": content_data.get("engagement_score", 0.75),
+                        "hashtags": content_data.get("hashtags", ["#PokemonTCG", "#Trading"]),
+                        "mentions_tradeup": "TradeUp" in content_data.get("content", "")
+                    }
+                    
+                    generated_posts.append(post)
+                    
+            except Exception as content_error:
+                logger.error(f"Error generating content for post {i}: {content_error}")
+                # Create fallback post
+                scheduled_time = generate_scheduled_time(i, request.postsPerDay, request.postingTimeStart, request.postingTimeEnd)
+                fallback_post = {
+                    "id": f"post-{int(datetime.now().timestamp())}-{i}",
+                    "content": f"Exciting Pokemon TCG insights about {topic}! What's your favorite strategy?",
+                    "topic": topic,
+                    "approved": None,
+                    "scheduledTime": scheduled_time,
+                    "engagement_score": 0.7,
+                    "hashtags": ["#PokemonTCG", "#Trading"],
+                    "mentions_tradeup": False
+                }
+                generated_posts.append(fallback_post)
+        
+        # Store generated posts in bot manager for approval workflow
+        if hasattr(bot_manager, 'store_generated_posts'):
+            bot_manager.store_generated_posts(generated_posts, request.dict())
+        
+        logger.info(f"Generated {len(generated_posts)} posts for approval")
+        
+        return {
+            "success": True,
+            "posts": generated_posts,
+            "settings": request.dict(),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating job with approval: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+def generate_scheduled_time(index: int, total_posts: int, start_time: str, end_time: str) -> str:
+    """Generate scheduled posting time"""
+    try:
+        start_hour, start_min = map(int, start_time.split(':'))
+        end_hour, end_min = map(int, end_time.split(':'))
+        
+        start_minutes = start_hour * 60 + start_min
+        end_minutes = end_hour * 60 + end_min
+        total_minutes = end_minutes - start_minutes
+        
+        if total_posts > 1:
+            interval = total_minutes // total_posts
+            post_time = start_minutes + (interval * index)
+        else:
+            post_time = start_minutes
+        
+        hour = post_time // 60
+        minute = post_time % 60
+        
+        return f"{hour:02d}:{minute:02d}"
+    except:
+        return "12:00"  # Fallback time
+
+# Post approval endpoints
+@app.get("/api/generated-posts")
+async def get_generated_posts():
+    """Get posts pending approval"""
+    try:
+        if hasattr(bot_manager, 'get_generated_posts'):
+            posts = bot_manager.get_generated_posts()
+        else:
+            posts = []
+        
+        return {
+            "success": True,
+            "posts": posts,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting generated posts: {e}")
+        return {
+            "success": False,
+            "posts": [],
+            "error": str(e)
+        }
+
+@app.post("/api/approve-post")
+async def approve_post(request: PostApprovalRequest):
+    """Approve or reject a generated post"""
+    try:
+        if hasattr(bot_manager, 'approve_post' if request.approved else 'reject_post'):
+            if request.approved:
+                result = bot_manager.approve_post(request.postId)
+            else:
+                result = bot_manager.reject_post(request.postId)
+        else:
+            result = True  # Fallback
+        
+        return {
+            "success": True,
+            "postId": request.postId,
+            "approved": request.approved,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error approving/rejecting post: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/schedule-approved-posts")
+async def schedule_approved_posts():
+    """Schedule all approved posts as a new job"""
+    try:
+        if hasattr(bot_manager, 'schedule_approved_posts'):
+            result = bot_manager.schedule_approved_posts()
+        else:
+            result = {"scheduled_count": 0}
+        
+        logger.info(f"Scheduled approved posts: {result}")
+        
+        return {
+            "success": True,
+            "scheduled_count": result.get("scheduled_count", 0),
+            "job_id": result.get("job_id"),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error scheduling approved posts: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/bot-job/{job_id}/start")
@@ -438,7 +649,7 @@ async def post_to_twitter(request: PostToTwitterRequest):
             "timestamp": datetime.now().isoformat()
         }
 
-# Data endpoints (for dashboard)
+# Data endpoints (for dashboard) - keeping your existing ones
 @app.get("/api/metrics")
 async def get_metrics():
     """Get bot metrics"""
