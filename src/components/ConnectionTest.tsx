@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AlertCircle, CheckCircle, RefreshCw, ExternalLink, Info, Globe, AlertTriangle, Server } from 'lucide-react';
 
 const ConnectionTest: React.FC = () => {
@@ -8,15 +8,10 @@ const ConnectionTest: React.FC = () => {
   const [testResults, setTestResults] = useState<any[]>([]);
   const [railwayStatus, setRailwayStatus] = useState<'unknown' | 'healthy' | 'unhealthy'>('unknown');
   const [corsIssues, setCorsIssues] = useState<boolean>(false);
+  const [lastTest, setLastTest] = useState<Date | null>(null);
+  const [manualTest, setManualTest] = useState<boolean>(false);
 
-  useEffect(() => {
-    const railwayUrl = import.meta.env.VITE_RAILWAY_API_URL;
-    const normalizedUrl = railwayUrl ? normalizeUrl(railwayUrl) : 'Not set';
-    setApiUrl(normalizedUrl);
-    testConnection();
-  }, []);
-
-  const normalizeUrl = (url: string): string => {
+  const normalizeUrl = useCallback((url: string): string => {
     // Remove any trailing slashes
     url = url.replace(/\/+$/, '');
     
@@ -26,9 +21,9 @@ const ConnectionTest: React.FC = () => {
     }
     
     return url;
-  };
+  }, []);
 
-  const testRailwayHealth = async (baseUrl: string) => {
+  const testRailwayHealth = useCallback(async (baseUrl: string) => {
     try {
       const normalizedUrl = normalizeUrl(baseUrl);
       console.log('Testing normalized URL:', normalizedUrl);
@@ -47,13 +42,17 @@ const ConnectionTest: React.FC = () => {
       setRailwayStatus('unhealthy');
       return false;
     }
-  };
+  }, [normalizeUrl]);
 
-  const testConnection = async () => {
+  const testConnection = useCallback(async (isManual: boolean = false) => {
     setStatus('testing');
     setError(null);
     setTestResults([]);
     setCorsIssues(false);
+    
+    if (isManual) {
+      setManualTest(true);
+    }
 
     try {
       const railwayUrl = import.meta.env.VITE_RAILWAY_API_URL;
@@ -169,6 +168,7 @@ const ConnectionTest: React.FC = () => {
 
       setTestResults(results);
       setCorsIssues(corsDetected);
+      setLastTest(new Date());
 
       // Check if all critical tests passed
       const criticalTests = results.filter(r => r.critical);
@@ -191,7 +191,41 @@ const ConnectionTest: React.FC = () => {
       console.error('❌ Connection test failed:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
       setStatus('error');
+      setLastTest(new Date());
+    } finally {
+      setManualTest(false);
     }
+  }, [normalizeUrl, testRailwayHealth]);
+
+  // Initialize URL and run initial test
+  useEffect(() => {
+    const railwayUrl = import.meta.env.VITE_RAILWAY_API_URL;
+    const normalizedUrl = railwayUrl ? normalizeUrl(railwayUrl) : 'Not set';
+    setApiUrl(normalizedUrl);
+    
+    // Run initial test
+    console.log('🚀 ConnectionTest: Running initial connection test...');
+    testConnection(false);
+  }, [normalizeUrl, testConnection]);
+
+  // Set up 20-minute interval for automatic testing
+  useEffect(() => {
+    // Set up 20-minute interval (20 * 60 * 1000 = 1,200,000 ms)
+    const interval = setInterval(() => {
+      console.log('⏰ ConnectionTest: 20-minute interval - Running automatic connection test...');
+      testConnection(false);
+    }, 20 * 60 * 1000);
+
+    // Cleanup interval on unmount
+    return () => {
+      clearInterval(interval);
+      console.log('ConnectionTest component unmounted, cleared interval');
+    };
+  }, [testConnection]);
+
+  const handleManualTest = () => {
+    console.log('🔄 ConnectionTest: Manual test triggered by user');
+    testConnection(true);
   };
 
   const getStatusColor = (status: string) => {
@@ -200,6 +234,14 @@ const ConnectionTest: React.FC = () => {
       case 'error': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const getNextTestTime = () => {
+    if (lastTest) {
+      const nextTest = new Date(lastTest.getTime() + 20 * 60 * 1000);
+      return nextTest.toLocaleTimeString();
+    }
+    return 'Soon';
   };
 
   return (
@@ -233,12 +275,12 @@ const ConnectionTest: React.FC = () => {
             </>
           )}
           <button
-            onClick={testConnection}
+            onClick={handleManualTest}
             disabled={status === 'testing'}
             className="flex items-center space-x-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${status === 'testing' ? 'animate-spin' : ''}`} />
-            <span>Test</span>
+            <span>{manualTest ? 'Testing...' : 'Test Now'}</span>
           </button>
         </div>
       </div>
@@ -272,11 +314,26 @@ const ConnectionTest: React.FC = () => {
           </div>
         </div>
 
+        {/* Test timing information */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Last Test:</span>
+          <span className="text-sm text-gray-800">
+            {lastTest ? lastTest.toLocaleTimeString() : 'Not tested yet'}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">Next Auto Test:</span>
+          <span className="text-sm text-gray-800">{getNextTestTime()}</span>
+        </div>
+
         <div className="flex items-center space-x-2">
           {status === 'testing' && (
             <>
               <RefreshCw className="h-5 w-5 text-blue-500 animate-spin" />
-              <span className="text-blue-600">Testing connection...</span>
+              <span className="text-blue-600">
+                {manualTest ? 'Running manual test...' : 'Testing connection...'}
+              </span>
             </>
           )}
           {status === 'connected' && (
@@ -373,15 +430,16 @@ const ConnectionTest: React.FC = () => {
           <div className="flex items-start space-x-2">
             <Info className="h-4 w-4 text-blue-600 mt-0.5" />
             <div className="text-xs text-blue-700">
-              <p><strong>Debug Information:</strong></p>
+              <p><strong>Auto-Test Schedule:</strong></p>
               <div className="grid grid-cols-2 gap-2 mt-1">
+                <div>Test Frequency: Every 20 minutes</div>
+                <div>Last Test: {lastTest ? lastTest.toLocaleString() : 'Not tested'}</div>
+                <div>Next Test: {getNextTestTime()}</div>
+                <div>Manual Override: Available anytime</div>
                 <div>Environment: {import.meta.env.MODE}</div>
                 <div>Dev Mode: {import.meta.env.DEV ? 'Yes' : 'No'}</div>
                 <div>Raw URL: {import.meta.env.VITE_RAILWAY_API_URL || 'Not set'}</div>
                 <div>Normalized URL: {apiUrl}</div>
-                <div>Expected Format: https://your-app.up.railway.app</div>
-                <div>Railway Status: {railwayStatus}</div>
-                <div>CORS Issues: {corsIssues ? 'Yes' : 'No'}</div>
               </div>
             </div>
           </div>
