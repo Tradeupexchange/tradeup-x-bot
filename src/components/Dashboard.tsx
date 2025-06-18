@@ -79,18 +79,33 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
       
-      <ConnectionTest />
-      <TestButtons />
-      <BotControl />
-      <MetricsGrid metrics={dashboardData.metrics} />
+      <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
+        <ConnectionTest />
+      </div>
+      
+      <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
+        <TestButtons />
+      </div>
+      
+      <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
+        <BotControl />
+      </div>
+      
+      <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
+        <MetricsGrid metrics={dashboardData.metrics} />
+      </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <EngagementChart data={dashboardData.engagementHistory} />
-        <PostingTrends />
+        <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
+          <EngagementChart data={dashboardData.engagementHistory} />
+        </div>
+        <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
+          <PostingTrends />
+        </div>
       </div>
       
       {/* Modified layout - RecentPosts now takes full width */}
-      <div className="grid grid-cols-1 gap-8">
+      <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
         <RecentPosts posts={dashboardData.posts} />
       </div>
     </div>
