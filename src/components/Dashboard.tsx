@@ -89,13 +89,9 @@ const Dashboard: React.FC = () => {
         <PostingTrends />
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
-          <RecentPosts posts={dashboardData.posts} />
-        </div>
-        <div>
-          <TopicAnalysis topics={dashboardData.topics} />
-        </div>
+      {/* Modified layout - RecentPosts now takes full width */}
+      <div className="grid grid-cols-1 gap-8">
+        <RecentPosts posts={dashboardData.posts} />
       </div>
     </div>
   );
