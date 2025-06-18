@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Play, Square, RefreshCw, AlertCircle, CheckCircle, MessageSquare, Reply, Settings, Clock, Target, Eye, Check, X, Calendar, Plus, Trash2 } from 'lucide-react';
-import { useApi, apiCall } from '../hooks/useApi';
 
 interface BotJob {
   id: string;
@@ -15,6 +14,19 @@ interface BotJob {
     repliesToday: number;
     successRate: number;
   };
+}
+
+interface BotStatus {
+  running: boolean;
+  uptime: string | null;
+  lastRun: string | null;
+  stats: {
+    postsToday: number;
+    repliesToday: number;
+    successRate: number;
+  };
+  jobs: BotJob[];
+  timestamp: string;
 }
 
 interface GeneratedPost {
@@ -42,7 +54,10 @@ interface JobSettings {
 }
 
 const BotControl: React.FC = () => {
-  const { data: status, loading, refetch } = useApi('/api/bot-status');
+  const [status, setStatus] = useState<BotStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [lastFetch, setLastFetch] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<BotJob[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showScheduler, setShowScheduler] = useState(false);
@@ -50,11 +65,94 @@ const BotControl: React.FC = () => {
   const [generatedPosts, setGeneratedPosts] = useState<GeneratedPost[]>([]);
   const [currentJobSettings, setCurrentJobSettings] = useState<JobSettings | null>(null);
 
-  useEffect(() => {
-    if (status?.jobs) {
-      setJobs(status.jobs);
+  // API base URL
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://your-railway-app.railway.app';
+
+  const apiCall = async (endpoint: string, options: RequestInit = {}) => {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
     }
-  }, [status]);
+
+    return response.json();
+  };
+
+  const fetchBotStatus = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      console.log('Fetching bot status...');
+
+      const statusData = await apiCall('/api/bot-status');
+      
+      console.log('Received bot status:', statusData);
+
+      setStatus(statusData);
+      
+      // Update jobs if they exist in the status
+      if (statusData.jobs && Array.isArray(statusData.jobs)) {
+        setJobs(statusData.jobs);
+      }
+
+      setLastFetch(new Date());
+
+    } catch (err) {
+      console.error('Error fetching bot status:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch bot status');
+      
+      // Don't clear existing data on error, just show error message
+      if (!status) {
+        // Only set fallback data if we have no existing data
+        setStatus({
+          running: false,
+          uptime: null,
+          lastRun: null,
+          stats: {
+            postsToday: 0,
+            repliesToday: 0,
+            successRate: 100
+          },
+          jobs: [],
+          timestamp: new Date().toISOString()
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [API_BASE_URL, status]);
+
+  // Initial fetch and setup 20-minute interval
+  useEffect(() => {
+    // Fetch immediately on mount
+    console.log('🚀 BotControl: Fetching initial bot status...');
+    fetchBotStatus();
+
+    // Set up 20-minute interval (20 * 60 * 1000 = 1,200,000 ms)
+    const interval = setInterval(() => {
+      console.log('⏰ BotControl: 20-minute interval - Fetching fresh bot status...');
+      fetchBotStatus();
+    }, 20 * 60 * 1000);
+
+    // Cleanup interval on unmount
+    return () => {
+      clearInterval(interval);
+      console.log('BotControl component unmounted, cleared interval');
+    };
+  }, [fetchBotStatus]);
+
+  const refetch = useCallback(() => {
+    console.log('🔄 BotControl: Manual refetch triggered');
+    fetchBotStatus();
+  }, [fetchBotStatus]);
 
   const handleJobAction = async (jobId: string, action: 'start' | 'stop' | 'pause') => {
     try {
@@ -245,7 +343,7 @@ const BotControl: React.FC = () => {
     }
   };
 
-  if (loading) {
+  if (loading && !status) {
     return (
       <div className="bg-white rounded-xl p-6 shadow-sm">
         <div className="animate-pulse space-y-4">
@@ -281,6 +379,11 @@ const BotControl: React.FC = () => {
               <p className="text-sm text-gray-600">
                 Manage your automated posting and reply functions
               </p>
+              {lastFetch && (
+                <p className="text-xs text-gray-500">
+                  Last updated: {lastFetch.toLocaleTimeString()}
+                </p>
+              )}
             </div>
           </div>
           
@@ -307,11 +410,25 @@ const BotControl: React.FC = () => {
                 <span>Review Posts ({generatedPosts.filter(p => p.approved === null).length})</span>
               </button>
             )}
+
+            {loading && (
+              <div className="flex items-center space-x-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <span>Updating...</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Error display */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-700">⚠️ {error}</p>
+          </div>
+        )}
+
+        {/* Quick Stats - Removed Success Rate, kept only Posts and Replies */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-blue-50 rounded-lg p-4">
             <div className="flex items-center space-x-2">
               <MessageSquare className="h-5 w-5 text-blue-600" />
@@ -331,16 +448,15 @@ const BotControl: React.FC = () => {
               {status?.stats?.repliesToday || 0}
             </p>
           </div>
-          
-          <div className="bg-purple-50 rounded-lg p-4">
-            <div className="flex items-center space-x-2">
-              <Target className="h-5 w-5 text-purple-600" />
-              <span className="text-sm font-medium text-purple-900">Success Rate</span>
-            </div>
-            <p className="text-2xl font-bold text-purple-900 mt-1">
-              {status?.stats?.successRate || 0}%
-            </p>
-          </div>
+        </div>
+
+        {/* Next update info */}
+        <div className="mt-4 text-xs text-gray-500 text-center">
+          Data refreshes every 20 minutes • Next update: {
+            lastFetch 
+              ? new Date(lastFetch.getTime() + 20 * 60 * 1000).toLocaleTimeString()
+              : 'Soon'
+          }
         </div>
       </div>
 
@@ -352,12 +468,7 @@ const BotControl: React.FC = () => {
           <div className="text-center py-8">
             <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500 mb-4">No active jobs running</p>
-            <button
-              onClick={() => setShowScheduler(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
-            >
-              Create Your First Job
-            </button>
+            <p className="text-sm text-gray-400">Create a new job to get started with automated posting or replying</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -921,8 +1032,7 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
   );
 };
 
-// Existing components (JobCard, ReplyingSettings) remain the same...
-
+// Job Card Component
 interface JobCardProps {
   job: BotJob;
   onAction: (jobId: string, action: 'start' | 'stop' | 'pause') => void;
@@ -1032,6 +1142,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onAction, actionLoading }) => {
   );
 };
 
+// Replying Settings Component
 const ReplyingSettings: React.FC<{ settings: any; onChange: (settings: any) => void }> = ({
   settings,
   onChange
