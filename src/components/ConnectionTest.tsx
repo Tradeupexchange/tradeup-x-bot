@@ -13,6 +13,9 @@ const ConnectionTest: React.FC = () => {
 
   // Get centralized refresh interval settings
   const refreshConfig = getRefreshInterval();
+  
+  // DEBUG: Log the actual refresh interval being used
+  console.log('🔍 ConnectionTest refresh config:', refreshConfig);
 
   const normalizeUrl = useCallback((url: string): string => {
     // Remove any trailing slashes
@@ -207,22 +210,22 @@ const ConnectionTest: React.FC = () => {
     testConnection(false);
   }, [testConnection]);
 
-  // Set up interval using centralized timing
-  useEffect(() => {
-    console.log(`⏰ ConnectionTest: Using centralized ${refreshConfig.displayText} interval for connection testing`);
+  // Set up interval using centralized timing - DISABLED to prevent frequent refreshing
+  // useEffect(() => {
+  //   console.log(`⏰ ConnectionTest: Using centralized ${refreshConfig.displayText} interval for connection testing`);
     
-    // Use the same interval as other components
-    const interval = setInterval(() => {
-      console.log(`⏰ ConnectionTest: ${refreshConfig.displayText} interval - Running automatic connection test...`);
-      testConnection(false);
-    }, refreshConfig.milliseconds);
+  //   // Use the same interval as other components
+  //   const interval = setInterval(() => {
+  //     console.log(`⏰ ConnectionTest: ${refreshConfig.displayText} interval - Running automatic connection test...`);
+  //     testConnection(false);
+  //   }, refreshConfig.milliseconds);
 
-    // Cleanup interval on unmount
-    return () => {
-      clearInterval(interval);
-      console.log('ConnectionTest component unmounted, cleared interval');
-    };
-  }, [testConnection, refreshConfig.milliseconds, refreshConfig.displayText]);
+  //   // Cleanup interval on unmount
+  //   return () => {
+  //     clearInterval(interval);
+  //     console.log('ConnectionTest component unmounted, cleared interval');
+  //   };
+  // }, [testConnection, refreshConfig.milliseconds, refreshConfig.displayText]);
 
   const handleManualTest = () => {
     console.log('🔄 ConnectionTest: Manual test triggered by user');
