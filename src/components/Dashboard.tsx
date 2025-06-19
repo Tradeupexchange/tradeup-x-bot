@@ -71,19 +71,6 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">TradeUp X Bot Control Dashboard</h2>
-          <p className="text-gray-600">Monitor and control your Pokemon TCG bot's performance</p>
-        </div>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2 px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
-            <div className="w-2 h-2 rounded-full bg-green-500"></div>
-            <span>Live Data</span>
-          </div>
-        </div>
-      </div>
-      
       {/* Connection Test and Test Buttons side by side at the top */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
