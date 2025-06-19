@@ -1,24 +1,17 @@
 import React, { useState } from 'react';
-import { Play, MessageSquare, RefreshCw, AlertCircle } from 'lucide-react';
+import { Play, MessageSquare, RefreshCw, ExternalLink } from 'lucide-react';
 import { apiCall } from '../hooks/useApi';
 
 const TestButtons: React.FC = () => {
   const [loading, setLoading] = useState<string | null>(null);
-  const [results, setResults] = useState<any[]>([]);
   const [generatedContent, setGeneratedContent] = useState<string | null>(null);
-
-  const addResult = (test: string, result: any, success: boolean) => {
-    setResults(prev => [...prev, {
-      test,
-      result,
-      success,
-      timestamp: new Date().toLocaleTimeString()
-    }]);
-  };
+  const [lastGeneratedContent, setLastGeneratedContent] = useState<string | null>(null);
+  const [postResult, setPostResult] = useState<{ content: string; link?: string } | null>(null);
 
   const testGenerateContent = async () => {
     try {
       setLoading('generate');
+      setLastGeneratedContent(null);
       console.log('🧪 Testing content generation...');
       
       const result = await apiCall('/api/generate-content', {
@@ -37,18 +30,14 @@ const TestButtons: React.FC = () => {
       if (result.success && result.content) {
         const content = result.content.optimized_content || result.content.content || result.content;
         setGeneratedContent(content);
+        setLastGeneratedContent(content);
         console.log('💾 Stored generated content for reuse:', content);
-        
-        addResult('Generate Content', { 
-          content: content,
-          stored_for_reuse: true 
-        }, true);
       } else {
-        addResult('Generate Content', result, false);
+        setLastGeneratedContent('Failed to generate content');
       }
     } catch (error) {
       console.error('❌ Content generation failed:', error);
-      addResult('Generate Content', error instanceof Error ? error.message : error, false);
+      setLastGeneratedContent(error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setLoading(null);
     }
@@ -57,6 +46,7 @@ const TestButtons: React.FC = () => {
   const testPostToInstagram = async () => {
     try {
       setLoading('post');
+      setPostResult(null);
       let contentToPost = generatedContent;
       
       if (!contentToPost) {
@@ -101,26 +91,33 @@ const TestButtons: React.FC = () => {
       
       if (result.success) {
         setGeneratedContent(null);
+        setPostResult({
+          content: contentToPost,
+          link: result.tweet_url || result.url || result.link
+        });
         console.log('🧹 Cleared stored content after successful post');
+      } else {
+        setPostResult({
+          content: contentToPost,
+          link: undefined
+        });
       }
-      
-      addResult('Post to Instagram', { 
-        content_used: contentToPost,
-        was_reused: generatedContent !== null,
-        post_result: result 
-      }, result.success || false);
       
     } catch (error) {
       console.error('❌ Instagram posting failed:', error);
-      addResult('Post to Instagram', error instanceof Error ? error.message : error, false);
+      setPostResult({
+        content: 'Failed to post',
+        link: undefined
+      });
     } finally {
       setLoading(null);
     }
   };
 
   const clearResults = () => {
-    setResults([]);
     setGeneratedContent(null);
+    setLastGeneratedContent(null);
+    setPostResult(null);
     console.log('🧹 Cleared all results and stored content');
   };
 
@@ -128,7 +125,7 @@ const TestButtons: React.FC = () => {
     <div className="bg-white rounded-xl p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">Content Test Buttons</h3>
-        {(results.length > 0 || generatedContent) && (
+        {(generatedContent || lastGeneratedContent || postResult) && (
           <button
             onClick={clearResults}
             className="text-sm text-gray-500 hover:text-gray-700"
@@ -176,26 +173,35 @@ const TestButtons: React.FC = () => {
         </button>
       </div>
 
-      {results.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-gray-700">Recent Results:</h4>
-          <div className="max-h-32 overflow-y-auto space-y-1">
-            {results.slice(-2).reverse().map((result, index) => (
-              <div
-                key={index}
-                className={`p-2 rounded text-xs ${
-                  result.success
-                    ? 'bg-green-50 border border-green-200'
-                    : 'bg-red-50 border border-red-200'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">{result.test}</span>
-                  <span className="text-xs text-gray-500">{result.timestamp}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* Display generated content */}
+      {lastGeneratedContent && (
+        <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Generated Content:</h4>
+          <p className="text-sm text-gray-800 whitespace-pre-wrap">
+            {lastGeneratedContent}
+          </p>
+        </div>
+      )}
+
+      {/* Display post result */}
+      {postResult && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+          <h4 className="text-sm font-medium text-green-700 mb-2">Posted to your account:</h4>
+          <p className="text-sm text-green-800 mb-2">"{postResult.content}"</p>
+          {postResult.link && (
+            <a
+              href={postResult.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center space-x-1 text-sm text-blue-600 hover:text-blue-800"
+            >
+              <span>View tweet</span>
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+          {!postResult.link && (
+            <p className="text-sm text-yellow-600">Post may have succeeded but no link was returned</p>
+          )}
         </div>
       )}
     </div>
