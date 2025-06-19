@@ -24,45 +24,50 @@ const Dashboard: React.FC = () => {
   });
 
   // Fetch data from Railway backend
-  const { data: initialMetrics } = useApi('/api/metrics');
-  const { data: initialPosts } = useApi('/api/posts');
-  const { data: initialTopics } = useApi('/api/topics');
-  const { data: initialEngagement } = useApi('/api/engagement');
+  const { data: initialMetrics } = useApi('/api/metrics', { autoRefresh: false });
+  const { data: initialPosts } = useApi('/api/posts', { autoRefresh: false });
+  const { data: initialTopics } = useApi('/api/topics', { autoRefresh: false });
+  const { data: initialEngagement } = useApi('/api/engagement', { autoRefresh: false });
 
   // Set initial data
   useEffect(() => {
     if (initialMetrics) {
+      console.log('📊 Dashboard: Setting metrics data');
       setDashboardData(prev => ({ ...prev, metrics: initialMetrics }));
     }
   }, [initialMetrics]);
 
   useEffect(() => {
     if (initialPosts) {
+      console.log('📝 Dashboard: Setting posts data');
       setDashboardData(prev => ({ ...prev, posts: initialPosts.posts || [] }));
     }
   }, [initialPosts]);
 
   useEffect(() => {
     if (initialTopics) {
+      console.log('🏷️ Dashboard: Setting topics data');
       setDashboardData(prev => ({ ...prev, topics: initialTopics }));
     }
   }, [initialTopics]);
 
   useEffect(() => {
     if (initialEngagement) {
+      console.log('📈 Dashboard: Setting engagement data');
       setDashboardData(prev => ({ ...prev, engagementHistory: initialEngagement }));
     }
   }, [initialEngagement]);
 
   // Auto-refresh data every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Trigger refetch of all data
-      window.location.reload();
-    }, 30000);
+  // Commented out to prevent frequent page refreshes
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     // Trigger refetch of all data
+  //     window.location.reload();
+  //   }, 30000);
 
-    return () => clearInterval(interval);
-  }, []);
+  //   return () => clearInterval(interval);
+  // }, []);
 
   return (
     <div className="space-y-8">
