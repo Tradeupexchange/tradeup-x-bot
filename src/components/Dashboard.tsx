@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import MetricsGrid from './MetricsGrid';
-import EngagementChart from './EngagementChart';
 import RecentPosts from './RecentPosts';
 import PostingTrends from './PostingTrends';
 import BotControl from './BotControl';
@@ -12,22 +11,19 @@ interface DashboardData {
   metrics: any;
   posts: any[];
   topics: any[];
-  engagementHistory: any[];
 }
 
 const Dashboard: React.FC = () => {
   const [dashboardData, setDashboardData] = useState<DashboardData>({
     metrics: null,
     posts: [],
-    topics: [],
-    engagementHistory: []
+    topics: []
   });
 
   // Fetch data from Railway backend
   const { data: initialMetrics } = useApi('/api/metrics', { autoRefresh: false });
   const { data: initialPosts } = useApi('/api/posts', { autoRefresh: false });
   const { data: initialTopics } = useApi('/api/topics', { autoRefresh: false });
-  const { data: initialEngagement } = useApi('/api/engagement', { autoRefresh: false });
 
   // Set initial data
   useEffect(() => {
@@ -50,13 +46,6 @@ const Dashboard: React.FC = () => {
       setDashboardData(prev => ({ ...prev, topics: initialTopics }));
     }
   }, [initialTopics]);
-
-  useEffect(() => {
-    if (initialEngagement) {
-      console.log('📈 Dashboard: Setting engagement data');
-      setDashboardData(prev => ({ ...prev, engagementHistory: initialEngagement }));
-    }
-  }, [initialEngagement]);
 
   // Auto-refresh data every 30 seconds
   // Commented out to prevent frequent page refreshes
@@ -102,11 +91,6 @@ const Dashboard: React.FC = () => {
       {/* Metrics Grid - full width */}
       <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
         <MetricsGrid metrics={dashboardData.metrics} />
-      </div>
-      
-      {/* Engagement Chart - full width */}
-      <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
-        <EngagementChart data={dashboardData.engagementHistory} />
       </div>
     </div>
   );
