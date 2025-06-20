@@ -96,7 +96,7 @@ const TestButtons: React.FC = () => {
     <>
       <div className="bg-white rounded-xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Content Test Buttons</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Test X Posting</h3>
         </div>
         
         <div className="flex justify-center">
@@ -111,7 +111,7 @@ const TestButtons: React.FC = () => {
               <MessageSquare className="h-5 w-5" />
             )}
             <span className="font-medium">
-              {loading === 'generate' ? 'Generating...' : 'Test Content'}
+              {loading === 'generate' ? 'Generating...' : 'Generate Content'}
             </span>
           </button>
         </div>
