@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import MetricsGrid from './MetricsGrid';
 import RecentPosts from './RecentPosts';
 import PostingTrends from './PostingTrends';
 import BotControl from './BotControl';
@@ -8,31 +7,21 @@ import TestButtons from './TestButtons';
 import { useApi } from '../hooks/useApi';
 
 interface DashboardData {
-  metrics: any;
   posts: any[];
   topics: any[];
 }
 
 const Dashboard: React.FC = () => {
   const [dashboardData, setDashboardData] = useState<DashboardData>({
-    metrics: null,
     posts: [],
     topics: []
   });
 
   // Fetch data from Railway backend
-  const { data: initialMetrics } = useApi('/api/metrics', { autoRefresh: false });
   const { data: initialPosts } = useApi('/api/posts', { autoRefresh: false });
   const { data: initialTopics } = useApi('/api/topics', { autoRefresh: false });
 
   // Set initial data
-  useEffect(() => {
-    if (initialMetrics) {
-      console.log('📊 Dashboard: Setting metrics data');
-      setDashboardData(prev => ({ ...prev, metrics: initialMetrics }));
-    }
-  }, [initialMetrics]);
-
   useEffect(() => {
     if (initialPosts) {
       console.log('📝 Dashboard: Setting posts data');
@@ -46,17 +35,6 @@ const Dashboard: React.FC = () => {
       setDashboardData(prev => ({ ...prev, topics: initialTopics }));
     }
   }, [initialTopics]);
-
-  // Auto-refresh data every 30 seconds
-  // Commented out to prevent frequent page refreshes
-  // useEffect(() => {
-  //   const interval = setInterval(() => {
-  //     // Trigger refetch of all data
-  //     window.location.reload();
-  //   }, 30000);
-
-  //   return () => clearInterval(interval);
-  // }, []);
 
   return (
     <div className="space-y-8">
@@ -86,11 +64,6 @@ const Dashboard: React.FC = () => {
       {/* Recent Posts - full width */}
       <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
         <RecentPosts posts={dashboardData.posts} />
-      </div>
-      
-      {/* Metrics Grid - full width */}
-      <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
-        <MetricsGrid metrics={dashboardData.metrics} />
       </div>
     </div>
   );
