@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Square, RefreshCw, AlertCircle, CheckCircle, MessageSquare, Reply, Settings, Clock, Target, Eye, Check, X, Calendar, Plus, Trash2 } from 'lucide-react';
+import { Play, Square, RefreshCw, AlertCircle, CheckCircle, MessageSquare, Reply, Settings, Clock, Target, Eye, Check, X, Calendar, Plus, Trash2, Edit2, RotateCcw } from 'lucide-react';
 import { useApi, useNextRefreshTime, apiCall } from '../hooks/useApi';
 
 interface BotJob {
   id: string;
+  name: string;
   type: 'posting' | 'replying';
   status: 'running' | 'stopped' | 'paused';
   settings: any;
@@ -57,7 +58,6 @@ interface JobSettings {
 const BotControl: React.FC = () => {
   // Use the centralized useApi hook - it automatically handles 20-minute intervals!
   const { data: status, loading, error, lastFetch, refetch } = useApi<BotStatus>('/api/bot-status');
-  const nextRefresh = useNextRefreshTime(lastFetch);
   
   const [jobs, setJobs] = useState<BotJob[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -65,6 +65,8 @@ const BotControl: React.FC = () => {
   const [showPostApproval, setShowPostApproval] = useState(false);
   const [generatedPosts, setGeneratedPosts] = useState<GeneratedPost[]>([]);
   const [currentJobSettings, setCurrentJobSettings] = useState<JobSettings | null>(null);
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
+  const [editingJobName, setEditingJobName] = useState('');
 
   // Update jobs when status changes
   useEffect(() => {
@@ -100,6 +102,29 @@ const BotControl: React.FC = () => {
     }
   };
 
+  const handleJobRename = async (jobId: string, newName: string) => {
+    try {
+      const result = await apiCall(`/api/bot-job/${jobId}/rename`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName })
+      });
+      
+      if (result.success) {
+        setJobs(prev => prev.map(job => 
+          job.id === jobId ? { ...job, name: newName } : job
+        ));
+        setEditingJobId(null);
+        setEditingJobName('');
+      }
+    } catch (error) {
+      console.error('Error renaming job:', error);
+      alert(`Failed to rename job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   const generateScheduledTimes = (count: number, startTime: string, endTime: string): string[] => {
     const times: string[] = [];
     const [startHour, startMin] = startTime.split(':').map(Number);
@@ -120,7 +145,7 @@ const BotControl: React.FC = () => {
     return times;
   };
 
-  const createJobWithApproval = async (jobSettings: JobSettings) => {
+  const createJobWithApproval = async (jobSettings: JobSettings, jobName: string) => {
     try {
       setActionLoading('generate-posts');
       console.log('🧪 Creating job with approval workflow...');
@@ -167,7 +192,7 @@ const BotControl: React.FC = () => {
       });
 
       setGeneratedPosts(posts);
-      setCurrentJobSettings(jobSettings);
+      setCurrentJobSettings({ ...jobSettings, name: jobName } as any);
       setShowScheduler(false);
       setShowPostApproval(true);
 
@@ -195,6 +220,45 @@ const BotControl: React.FC = () => {
     );
   };
 
+  const regeneratePost = async (postId: string) => {
+    try {
+      setActionLoading(`regenerate-${postId}`);
+      const post = generatedPosts.find(p => p.id === postId);
+      if (!post) return;
+
+      const contentResult = await apiCall('/api/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: post.topic,
+          count: 1
+        })
+      });
+
+      if (contentResult.success && contentResult.content) {
+        setGeneratedPosts(prev => 
+          prev.map(p => 
+            p.id === postId 
+              ? {
+                  ...p,
+                  content: contentResult.content.content || contentResult.content,
+                  approved: null,
+                  engagement_score: contentResult.content.engagement_score,
+                  hashtags: contentResult.content.hashtags,
+                  mentions_tradeup: contentResult.content.mentions_tradeup
+                }
+              : p
+          )
+        );
+      }
+    } catch (error) {
+      console.error('❌ Post regeneration failed:', error);
+      alert(`Failed to regenerate post: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const scheduleApprovedPosts = async () => {
     try {
       setActionLoading('schedule');
@@ -213,6 +277,7 @@ const BotControl: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'posting',
+          name: (currentJobSettings as any)?.name || 'Untitled Job',
           settings: {
             ...currentJobSettings,
             approvedPosts: approvedPosts,
@@ -224,6 +289,7 @@ const BotControl: React.FC = () => {
       if (result.success) {
         alert(`Successfully scheduled ${approvedPosts.length} posts!`);
         setShowPostApproval(false);
+        setGeneratedPosts([]);
         refetch(); // Refresh the jobs list
       }
 
@@ -235,17 +301,17 @@ const BotControl: React.FC = () => {
     }
   };
 
-  const createNewJob = async (type: 'posting' | 'replying', settings: any) => {
+  const createNewJob = async (type: 'posting' | 'replying', settings: any, jobName: string) => {
     try {
       setActionLoading('create');
-      console.log('Creating new job:', { type, settings });
+      console.log('Creating new job:', { type, settings, name: jobName });
       
       const result = await apiCall('/api/bot-job/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ type, settings })
+        body: JSON.stringify({ type, settings, name: jobName })
       });
       
       console.log('Job creation result:', result);
@@ -283,27 +349,27 @@ const BotControl: React.FC = () => {
       <div className="bg-white rounded-xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
-            <div className={`p-3 rounded-full ${
-              status?.running ? 'bg-green-100' : 'bg-gray-100'
-            }`}>
-              {status?.running ? (
-                <CheckCircle className="h-6 w-6 text-green-600" />
-              ) : (
-                <AlertCircle className="h-6 w-6 text-gray-600" />
-              )}
+            <div className="p-3 rounded-full bg-red-100">
+              <img 
+                src="/pokeball.png" 
+                alt="Pokeball" 
+                className="h-6 w-6"
+                onError={(e) => {
+                  // Fallback to checkmark icon if pokeball.png doesn't exist
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+              <CheckCircle className="h-6 w-6 text-red-600 hidden" />
             </div>
             <div>
               <h3 className="text-xl font-semibold text-gray-900">
-                Pokemon TCG Bot Control Center
+                Automated Posting
               </h3>
               <p className="text-sm text-gray-600">
-                Manage your automated posting and reply functions
+                Generate, approve, and schedule posts
               </p>
-              {lastFetch && (
-                <p className="text-xs text-gray-500">
-                  Last updated: {lastFetch.toLocaleTimeString()}
-                </p>
-              )}
             </div>
           </div>
           
@@ -346,38 +412,6 @@ const BotControl: React.FC = () => {
             <p className="text-sm text-red-700">⚠️ {error}</p>
           </div>
         )}
-
-        {/* Quick Stats - Removed Success Rate, kept only Posts and Replies */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-blue-50 rounded-lg p-4">
-            <div className="flex items-center space-x-2">
-              <MessageSquare className="h-5 w-5 text-blue-600" />
-              <span className="text-sm font-medium text-blue-900">Posts Today</span>
-            </div>
-            <p className="text-2xl font-bold text-blue-900 mt-1">
-              {status?.stats?.postsToday || 0}
-            </p>
-          </div>
-          
-          <div className="bg-green-50 rounded-lg p-4">
-            <div className="flex items-center space-x-2">
-              <Reply className="h-5 w-5 text-green-600" />
-              <span className="text-sm font-medium text-green-900">Replies Today</span>
-            </div>
-            <p className="text-2xl font-bold text-green-900 mt-1">
-              {status?.stats?.repliesToday || 0}
-            </p>
-          </div>
-        </div>
-
-        {/* Next update info - now uses centralized timing */}
-        <div className="mt-4 text-xs text-gray-500 text-center">
-          Auto-refreshes every 20 minutes • Next update: {
-            nextRefresh 
-              ? nextRefresh.toLocaleTimeString()
-              : 'Soon'
-          }
-        </div>
       </div>
 
       {/* Active Jobs */}
@@ -397,7 +431,12 @@ const BotControl: React.FC = () => {
                 key={job.id}
                 job={job}
                 onAction={handleJobAction}
+                onRename={handleJobRename}
                 actionLoading={actionLoading}
+                editingJobId={editingJobId}
+                editingJobName={editingJobName}
+                setEditingJobId={setEditingJobId}
+                setEditingJobName={setEditingJobName}
               />
             ))}
           </div>
@@ -420,9 +459,10 @@ const BotControl: React.FC = () => {
           posts={generatedPosts}
           onApprove={approvePost}
           onReject={rejectPost}
+          onRegenerate={regeneratePost}
           onSchedule={scheduleApprovedPosts}
           onClose={() => setShowPostApproval(false)}
-          loading={actionLoading === 'schedule'}
+          loading={actionLoading}
         />
       )}
     </div>
@@ -432,8 +472,8 @@ const BotControl: React.FC = () => {
 // Enhanced Job Scheduler with post approval option
 interface EnhancedJobSchedulerProps {
   onClose: () => void;
-  onCreateJob: (type: 'posting' | 'replying', settings: any) => void;
-  onCreateJobWithApproval: (settings: JobSettings) => void;
+  onCreateJob: (type: 'posting' | 'replying', settings: any, jobName: string) => void;
+  onCreateJobWithApproval: (settings: JobSettings, jobName: string) => void;
   loading: boolean;
 }
 
@@ -446,6 +486,7 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
   const [jobType, setJobType] = useState<'posting' | 'replying'>('posting');
   const [useApprovalWorkflow, setUseApprovalWorkflow] = useState(true);
   const [newTopic, setNewTopic] = useState('');
+  const [jobName, setJobName] = useState('');
   
   const [settings, setSettings] = useState({
     // Posting settings
@@ -490,6 +531,11 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!jobName.trim()) {
+      alert('Please enter a job name');
+      return;
+    }
+    
     if (jobType === 'posting' && useApprovalWorkflow) {
       // Use the enhanced workflow with post approval
       const jobSettings: JobSettings = {
@@ -499,10 +545,10 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
         postingTimeEnd: settings.postingTimeEnd,
         contentTypes: settings.contentTypes
       };
-      onCreateJobWithApproval(jobSettings);
+      onCreateJobWithApproval(jobSettings, jobName);
     } else {
       // Use the original workflow
-      onCreateJob(jobType, settings);
+      onCreateJob(jobType, settings, jobName);
     }
   };
 
@@ -519,6 +565,21 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Job Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Job Name
+            </label>
+            <input
+              type="text"
+              value={jobName}
+              onChange={(e) => setJobName(e.target.value)}
+              placeholder="Enter a name for this job..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
           {/* Job Type Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-3">
@@ -771,15 +832,17 @@ interface PostApprovalModalProps {
   posts: GeneratedPost[];
   onApprove: (postId: string) => void;
   onReject: (postId: string) => void;
+  onRegenerate: (postId: string) => void;
   onSchedule: () => void;
   onClose: () => void;
-  loading: boolean;
+  loading: string | null;
 }
 
 const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
   posts,
   onApprove,
   onReject,
+  onRegenerate,
   onSchedule,
   onClose,
   loading
@@ -885,6 +948,22 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
                   >
                     <Check className="h-4 w-4" />
                   </button>
+                  
+                  {post.approved === false && (
+                    <button
+                      onClick={() => onRegenerate(post.id)}
+                      disabled={loading === `regenerate-${post.id}`}
+                      className="p-2 rounded-lg bg-blue-100 text-blue-800 hover:bg-blue-200 hover:scale-105 transition-all duration-200 disabled:opacity-50"
+                      title="Regenerate post"
+                    >
+                      {loading === `regenerate-${post.id}` ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-4 w-4" />
+                      )}
+                    </button>
+                  )}
+                  
                   <button
                     onClick={() => onReject(post.id)}
                     disabled={post.approved === false}
@@ -908,7 +987,10 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
                   <span className={`text-xs font-medium ${
                     post.approved ? 'text-green-800' : 'text-red-800'
                   }`}>
-                    {post.approved ? '✓ Approved for scheduling' : '✗ Rejected - will not be posted'}
+                    {post.approved 
+                      ? '✓ Approved for scheduling' 
+                      : '✗ Rejected - click regenerate button to create a new version'
+                    }
                   </span>
                 </div>
               )}
@@ -921,16 +1003,16 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
           <div className="flex gap-4">
             <button
               onClick={onSchedule}
-              disabled={loading || approvedCount === 0}
+              disabled={loading === 'schedule' || approvedCount === 0}
               className="flex-1 flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
-              {loading ? (
+              {loading === 'schedule' ? (
                 <RefreshCw className="h-4 w-4 animate-spin" />
               ) : (
                 <Calendar className="h-4 w-4" />
               )}
               <span>
-                {loading ? 'Scheduling...' : `Schedule ${approvedCount} Approved Posts`}
+                {loading === 'schedule' ? 'Scheduling...' : `Schedule ${approvedCount} Approved Posts`}
               </span>
             </button>
             <button
@@ -956,12 +1038,46 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
 interface JobCardProps {
   job: BotJob;
   onAction: (jobId: string, action: 'start' | 'stop' | 'pause') => void;
+  onRename: (jobId: string, newName: string) => void;
   actionLoading: string | null;
+  editingJobId: string | null;
+  editingJobName: string;
+  setEditingJobId: (id: string | null) => void;
+  setEditingJobName: (name: string) => void;
 }
 
-const JobCard: React.FC<JobCardProps> = ({ job, onAction, actionLoading }) => {
+const JobCard: React.FC<JobCardProps> = ({ 
+  job, 
+  onAction, 
+  onRename,
+  actionLoading, 
+  editingJobId,
+  editingJobName,
+  setEditingJobId,
+  setEditingJobName
+}) => {
   const isRunning = job.status === 'running';
   const isLoading = actionLoading?.startsWith(job.id);
+  const isEditing = editingJobId === job.id;
+
+  const handleStartEdit = () => {
+    setEditingJobId(job.id);
+    setEditingJobName(job.name || `${job.type} Job`);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingJobName.trim()) {
+      onRename(job.id, editingJobName.trim());
+    } else {
+      setEditingJobId(null);
+      setEditingJobName('');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingJobId(null);
+    setEditingJobName('');
+  };
 
   return (
     <div className="border border-gray-200 rounded-lg p-4">
@@ -977,10 +1093,43 @@ const JobCard: React.FC<JobCardProps> = ({ job, onAction, actionLoading }) => {
             )}
           </div>
           
-          <div>
-            <h5 className="font-medium text-gray-900 capitalize">
-              {job.type} Bot
-            </h5>
+          <div className="flex-1">
+            {isEditing ? (
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={editingJobName}
+                  onChange={(e) => setEditingJobName(e.target.value)}
+                  className="px-2 py-1 border border-gray-300 rounded text-sm font-medium"
+                  onKeyPress={(e) => e.key === 'Enter' && handleSaveEdit()}
+                  autoFocus
+                />
+                <button
+                  onClick={handleSaveEdit}
+                  className="p-1 text-green-600 hover:text-green-800"
+                >
+                  <Check className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  className="p-1 text-red-600 hover:text-red-800"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <h5 className="font-medium text-gray-900">
+                  {job.name || `${job.type.charAt(0).toUpperCase() + job.type.slice(1)} Job`}
+                </h5>
+                <button
+                  onClick={handleStartEdit}
+                  className="p-1 text-gray-400 hover:text-gray-600"
+                >
+                  <Edit2 className="h-3 w-3" />
+                </button>
+              </div>
+            )}
             <p className="text-sm text-gray-600">
               {job.type === 'posting' 
                 ? `${job.settings?.postsPerDay || 12} posts/day` 

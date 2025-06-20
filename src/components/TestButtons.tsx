@@ -112,7 +112,7 @@ const TestButtons: React.FC = () => {
             >
               X
             </div>
-            <h3 className="text-lg font-semibold text-gray-900">Test X Posting</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Test Posting</h3>
           </div>
         </div>
         
