@@ -75,9 +75,10 @@ const BotControl: React.FC = () => {
       setJobs(status.jobs);
       // Update job counter based on existing jobs
       const maxJobNumber = status.jobs.reduce((max, job) => {
-        const match = job.name?.match(/^Job #(\d+)$/);
+        const jobNamePattern = /^Job #(\d+)$/;
+        const match = job.name?.match(jobNamePattern);
         if (match) {
-          return Math.max(max, parseInt(match[1]));
+          return Math.max(max, parseInt(match[1], 10));
         }
         return max;
       }, 0);
@@ -576,7 +577,7 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <h3 className="text-xl font-semibold text-gray-900">Create New Bot Job</h3>
@@ -880,156 +881,155 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
             <X className="h-5 w-5" />
           </button>
         </div>
-          
-          {/* Stats bar */}
-          <div className="mt-4 grid grid-cols-4 gap-4 text-sm">
-            <div className="bg-blue-50 rounded-lg p-3 text-center">
-              <div className="font-semibold text-blue-900">{posts.length}</div>
-              <div className="text-blue-700">Total</div>
-            </div>
-            <div className="bg-green-50 rounded-lg p-3 text-center">
-              <div className="font-semibold text-green-900">{approvedCount}</div>
-              <div className="text-green-700">Approved</div>
-            </div>
-            <div className="bg-red-50 rounded-lg p-3 text-center">
-              <div className="font-semibold text-red-900">{rejectedCount}</div>
-              <div className="text-red-700">Rejected</div>
-            </div>
-            <div className="bg-yellow-50 rounded-lg p-3 text-center">
-              <div className="font-semibold text-yellow-900">{pendingCount}</div>
-              <div className="text-yellow-700">Pending</div>
-            </div>
+        
+        {/* Stats bar */}
+        <div className="mt-4 grid grid-cols-4 gap-4 text-sm">
+          <div className="bg-blue-50 rounded-lg p-3 text-center">
+            <div className="font-semibold text-blue-900">{posts.length}</div>
+            <div className="text-blue-700">Total</div>
+          </div>
+          <div className="bg-green-50 rounded-lg p-3 text-center">
+            <div className="font-semibold text-green-900">{approvedCount}</div>
+            <div className="text-green-700">Approved</div>
+          </div>
+          <div className="bg-red-50 rounded-lg p-3 text-center">
+            <div className="font-semibold text-red-900">{rejectedCount}</div>
+            <div className="text-red-700">Rejected</div>
+          </div>
+          <div className="bg-yellow-50 rounded-lg p-3 text-center">
+            <div className="font-semibold text-yellow-900">{pendingCount}</div>
+            <div className="text-yellow-700">Pending</div>
           </div>
         </div>
+      </div>
 
-        {/* Posts list */}
-        <div className="p-6 space-y-4 max-h-96 overflow-y-auto">
-          {posts.map((post) => (
-            <div
-              key={post.id}
-              className={`p-4 border-2 rounded-lg transition-all duration-200 ${
-                post.approved === true
-                  ? 'border-green-200 bg-green-50'
-                  : post.approved === false
-                  ? 'border-red-200 bg-red-50'
-                  : 'border-gray-200 bg-white hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1 mr-4">
-                  {/* Post metadata */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                      {post.topic}
+      {/* Posts list */}
+      <div className="p-6 space-y-4 max-h-96 overflow-y-auto">
+        {posts.map((post) => (
+          <div
+            key={post.id}
+            className={`p-4 border-2 rounded-lg transition-all duration-200 ${
+              post.approved === true
+                ? 'border-green-200 bg-green-50'
+                : post.approved === false
+                ? 'border-red-200 bg-red-50'
+                : 'border-gray-200 bg-white hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex-1 mr-4">
+                {/* Post metadata */}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                    {post.topic}
+                  </span>
+                  <span className="text-xs text-gray-500 flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {post.scheduledTime}
+                  </span>
+                  {post.mentions_tradeup && (
+                    <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
+                      TradeUp Mention
                     </span>
-                    <span className="text-xs text-gray-500 flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {post.scheduledTime}
-                    </span>
-                    {post.mentions_tradeup && (
-                      <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
-                        TradeUp Mention
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Post content */}
-                  <p className="text-gray-900 mb-3 leading-relaxed">{post.content}</p>
-
-                  {/* Hashtags */}
-                  {post.hashtags && post.hashtags.length > 0 && (
-                    <div className="flex gap-1 flex-wrap">
-                      {post.hashtags.map((tag, i) => (
-                        <span key={i} className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
                   )}
                 </div>
-                
-                {/* Action buttons */}
-                <div className="flex gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => onApprove(post.id)}
-                    disabled={post.approved === true}
-                    className={`p-2 rounded-lg transition-all duration-200 ${
-                      post.approved === true
-                        ? 'bg-green-600 text-white cursor-default'
-                        : 'bg-green-100 text-green-800 hover:bg-green-200 hover:scale-105'
-                    }`}
-                    title="Approve post"
-                  >
-                    <Check className="h-4 w-4" />
-                  </button>
-                  
-                  <button
-                    onClick={() => onReject(post.id)}
-                    disabled={loading === `regenerate-${post.id}`}
-                    className="p-2 rounded-lg bg-red-100 text-red-800 hover:bg-red-200 hover:scale-105 transition-all duration-200 disabled:opacity-50"
-                    title="Reject and regenerate post"
-                  >
-                    {loading === `regenerate-${post.id}` ? (
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <X className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
+
+                {/* Post content */}
+                <p className="text-gray-900 mb-3 leading-relaxed">{post.content}</p>
+
+                {/* Hashtags */}
+                {post.hashtags && post.hashtags.length > 0 && (
+                  <div className="flex gap-1 flex-wrap">
+                    {post.hashtags.map((tag, i) => (
+                      <span key={i} className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-
-              {/* Approval status indicator */}
-              {post.approved !== null && (
-                <div className={`mt-3 pt-3 border-t ${
-                  post.approved ? 'border-green-200' : 'border-red-200'
-                }`}>
-                  <span className={`text-xs font-medium ${
-                    post.approved ? 'text-green-800' : 'text-red-800'
-                  }`}>
-                    {post.approved 
-                      ? '✓ Approved for scheduling' 
-                      : loading === `regenerate-${post.id}`
-                      ? '🔄 Regenerating content...'
-                      : '✗ Regenerating new version...'
-                    }
-                  </span>
-                </div>
-              )}
+              
+              {/* Action buttons */}
+              <div className="flex gap-2 flex-shrink-0">
+                <button
+                  onClick={() => onApprove(post.id)}
+                  disabled={post.approved === true}
+                  className={`p-2 rounded-lg transition-all duration-200 ${
+                    post.approved === true
+                      ? 'bg-green-600 text-white cursor-default'
+                      : 'bg-green-100 text-green-800 hover:bg-green-200 hover:scale-105'
+                  }`}
+                  title="Approve post"
+                >
+                  <Check className="h-4 w-4" />
+                </button>
+                
+                <button
+                  onClick={() => onReject(post.id)}
+                  disabled={loading === `regenerate-${post.id}`}
+                  className="p-2 rounded-lg bg-red-100 text-red-800 hover:bg-red-200 hover:scale-105 transition-all duration-200 disabled:opacity-50"
+                  title="Reject and regenerate post"
+                >
+                  {loading === `regenerate-${post.id}` ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <X className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
 
-        {/* Action buttons */}
-        <div className="p-6 border-t border-gray-200 bg-gray-50">
-          <div className="flex gap-4">
-            <button
-              onClick={onSchedule}
-              disabled={loading === 'schedule' || approvedCount === 0}
-              className="flex-1 flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-            >
-              {loading === 'schedule' ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <Calendar className="h-4 w-4" />
-              )}
-              <span>
-                {loading === 'schedule' ? 'Scheduling...' : `Schedule ${approvedCount} Approved Posts`}
-              </span>
-            </button>
-            <button
-              onClick={onClose}
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors duration-200"
-            >
-              Cancel
-            </button>
+            {/* Approval status indicator */}
+            {post.approved !== null && (
+              <div className={`mt-3 pt-3 border-t ${
+                post.approved ? 'border-green-200' : 'border-red-200'
+              }`}>
+                <span className={`text-xs font-medium ${
+                  post.approved ? 'text-green-800' : 'text-red-800'
+                }`}>
+                  {post.approved 
+                    ? '✓ Approved for scheduling' 
+                    : loading === `regenerate-${post.id}`
+                    ? '🔄 Regenerating content...'
+                    : '✗ Regenerating new version...'
+                  }
+                </span>
+              </div>
+            )}
           </div>
-          
-          {approvedCount === 0 && (
-            <p className="text-sm text-gray-500 text-center mt-3">
-              Please approve at least one post before scheduling
-            </p>
-          )}
+        ))}
+      </div>
+
+      {/* Action buttons */}
+      <div className="p-6 border-t border-gray-200 bg-gray-50">
+        <div className="flex gap-4">
+          <button
+            onClick={onSchedule}
+            disabled={loading === 'schedule' || approvedCount === 0}
+            className="flex-1 flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+          >
+            {loading === 'schedule' ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <Calendar className="h-4 w-4" />
+            )}
+            <span>
+              {loading === 'schedule' ? 'Scheduling...' : `Schedule ${approvedCount} Approved Posts`}
+            </span>
+          </button>
+          <button
+            onClick={onClose}
+            className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors duration-200"
+          >
+            Cancel
+          </button>
         </div>
+        
+        {approvedCount === 0 && (
+          <p className="text-sm text-gray-500 text-center mt-3">
+            Please approve at least one post before scheduling
+          </p>
+        )}
       </div>
     </div>
   );
