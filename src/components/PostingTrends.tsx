@@ -421,6 +421,5 @@ export default PostingTrends;
       )}
     </>
   );
-};
 
 export default PostingTrends;
