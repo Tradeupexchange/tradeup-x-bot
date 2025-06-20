@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, MessageSquare, Heart, Users, BarChart3, X } from 'lucide-react';
+import { TrendingUp, MessageSquare, Heart, Users, BarChart3, X, Rocket } from 'lucide-react';
 
 interface MetricData {
   id: string;
@@ -83,8 +83,10 @@ const PostingTrends: React.FC = () => {
     <>
       <div className="h-full">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-gray-900">Posting Trends</h3>
-          <TrendingUp className="h-5 w-5 text-gray-400" />
+          <div className="flex items-center space-x-3">
+            <Rocket className="h-5 w-5 text-gray-600" />
+            <h3 className="text-lg font-semibold text-gray-900">Posting Trends</h3>
+          </div>
         </div>
 
         {/* 2x2 Grid of Metric Squares */}
