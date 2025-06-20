@@ -15,10 +15,15 @@ const API_BASE_URL =
 console.log('🎯 Final API_BASE_URL:', API_BASE_URL);
 
 // 🎯 CENTRALIZED REFRESH INTERVAL - Change this one value to affect all components!
-const REFRESH_INTERVAL_MINUTES = 20;
-const REFRESH_INTERVAL_MS = REFRESH_INTERVAL_MINUTES * 60 * 1000; // 20 minutes in milliseconds
+const REFRESH_INTERVAL_MINUTES = 60;
+const REFRESH_INTERVAL_MS = REFRESH_INTERVAL_MINUTES * 60 * 1000; // 60 minutes in milliseconds
+
+// Special longer interval for Twitter API to prevent rate limiting
+const TWITTER_REFRESH_INTERVAL_MINUTES = 120; // 2 hours for Twitter
+const TWITTER_REFRESH_INTERVAL_MS = TWITTER_REFRESH_INTERVAL_MINUTES * 60 * 1000;
 
 console.log(`⏰ Using ${REFRESH_INTERVAL_MINUTES}-minute refresh interval for all API calls`);
+console.log(`🐦 Using ${TWITTER_REFRESH_INTERVAL_MINUTES}-minute refresh interval for Twitter API calls`);
 
 interface ApiResponse<T> {
   data: T | null;
@@ -74,6 +79,10 @@ export const useApi = <T>(endpoint: string, options: UseApiOptions = {}): ApiRes
       console.log('📡 Response ok:', response.ok);
 
       if (!response.ok) {
+        // Special handling for rate limiting errors
+        if (response.status === 429) {
+          throw new Error(`Rate limit exceeded. Please wait before making more requests.`);
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -110,12 +119,17 @@ export const useApi = <T>(endpoint: string, options: UseApiOptions = {}): ApiRes
     
     // Set up auto-refresh interval (if enabled)
     if (autoRefresh) {
-      console.log(`⏰ Setting up ${REFRESH_INTERVAL_MINUTES}-minute auto-refresh for ${endpoint}`);
+      // Use longer interval for Twitter endpoints to prevent rate limiting
+      const isTwitterEndpoint = endpoint.includes('twitter-metrics');
+      const intervalMinutes = isTwitterEndpoint ? TWITTER_REFRESH_INTERVAL_MINUTES : REFRESH_INTERVAL_MINUTES;
+      const intervalMs = isTwitterEndpoint ? TWITTER_REFRESH_INTERVAL_MS : REFRESH_INTERVAL_MS;
+      
+      console.log(`⏰ Setting up ${intervalMinutes}-minute auto-refresh for ${endpoint}${isTwitterEndpoint ? ' (Twitter endpoint)' : ''}`);
       
       intervalRef.current = setInterval(() => {
-        console.log(`🔄 Auto-refresh triggered for ${endpoint} (${REFRESH_INTERVAL_MINUTES} minutes elapsed)`);
+        console.log(`🔄 Auto-refresh triggered for ${endpoint} (${intervalMinutes} minutes elapsed)`);
         fetchData(false);
-      }, REFRESH_INTERVAL_MS);
+      }, intervalMs);
     }
 
     // Cleanup function
@@ -150,6 +164,12 @@ export const apiCall = async <T>(endpoint: string, options?: RequestInit): Promi
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ apiCall error response:', errorText);
+      
+      // Special handling for rate limiting
+      if (response.status === 429) {
+        throw new Error(`Rate limit exceeded. Please try again later.`);
+      }
+      
       throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
     }
 
