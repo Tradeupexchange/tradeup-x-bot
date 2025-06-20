@@ -96,7 +96,24 @@ const TestButtons: React.FC = () => {
     <>
       <div className="bg-white rounded-xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Test X Posting</h3>
+          <div className="flex items-center space-x-3">
+            <h3 className="text-lg font-semibold text-gray-900">Test X Posting</h3>
+            <img 
+              src="/x-logo.png" 
+              alt="X Logo" 
+              className="h-6 w-6"
+              onError={(e) => {
+                // Fallback to a simple X if logo image fails to load
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling!.style.display = 'block';
+              }}
+            />
+            <div 
+              className="h-6 w-6 bg-black rounded flex items-center justify-center text-white font-bold text-sm hidden"
+            >
+              X
+            </div>
+          </div>
         </div>
         
         <div className="flex justify-center">
