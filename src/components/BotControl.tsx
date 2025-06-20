@@ -60,6 +60,7 @@ const BotControl: React.FC = () => {
   const { data: status, loading, error, lastFetch, refetch } = useApi<BotStatus>('/api/bot-status');
   
   const [jobs, setJobs] = useState<BotJob[]>([]);
+  const [jobCounter, setJobCounter] = useState(1);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showScheduler, setShowScheduler] = useState(false);
   const [showPostApproval, setShowPostApproval] = useState(false);
@@ -72,6 +73,15 @@ const BotControl: React.FC = () => {
   useEffect(() => {
     if (status?.jobs && Array.isArray(status.jobs)) {
       setJobs(status.jobs);
+      // Update job counter based on existing jobs
+      const maxJobNumber = status.jobs.reduce((max, job) => {
+        const match = job.name?.match(/^Job #(\d+)$/);
+        if (match) {
+          return Math.max(max, parseInt(match[1]));
+        }
+        return max;
+      }, 0);
+      setJobCounter(maxJobNumber + 1);
       console.log('Updated jobs from API:', status.jobs);
     }
   }, [status]);
@@ -150,6 +160,12 @@ const BotControl: React.FC = () => {
       setActionLoading('generate-posts');
       console.log('🧪 Creating job with approval workflow...');
 
+      // Use provided name or generate automatic name
+      const finalJobName = jobName.trim() || `Job #${jobCounter}`;
+      if (!jobName.trim()) {
+        setJobCounter(prev => prev + 1);
+      }
+
       // Step 1: Generate posts for approval
       console.log('📝 Generating posts for approval...');
       const posts: GeneratedPost[] = [];
@@ -192,7 +208,7 @@ const BotControl: React.FC = () => {
       });
 
       setGeneratedPosts(posts);
-      setCurrentJobSettings({ ...jobSettings, name: jobName } as any);
+      setCurrentJobSettings({ ...jobSettings, name: finalJobName } as any);
       setShowScheduler(false);
       setShowPostApproval(true);
 
@@ -212,12 +228,9 @@ const BotControl: React.FC = () => {
     );
   };
 
-  const rejectPost = (postId: string) => {
-    setGeneratedPosts(prev => 
-      prev.map(post => 
-        post.id === postId ? { ...post, approved: false } : post
-      )
-    );
+  const rejectPost = async (postId: string) => {
+    // Automatically regenerate when rejecting
+    await regeneratePost(postId);
   };
 
   const regeneratePost = async (postId: string) => {
@@ -304,14 +317,21 @@ const BotControl: React.FC = () => {
   const createNewJob = async (type: 'posting' | 'replying', settings: any, jobName: string) => {
     try {
       setActionLoading('create');
-      console.log('Creating new job:', { type, settings, name: jobName });
+      
+      // Use provided name or generate automatic name
+      const finalJobName = jobName.trim() || `Job #${jobCounter}`;
+      if (!jobName.trim()) {
+        setJobCounter(prev => prev + 1);
+      }
+      
+      console.log('Creating new job:', { type, settings, name: finalJobName });
       
       const result = await apiCall('/api/bot-job/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ type, settings, name: jobName })
+        body: JSON.stringify({ type, settings, name: finalJobName })
       });
       
       console.log('Job creation result:', result);
@@ -349,7 +369,7 @@ const BotControl: React.FC = () => {
       <div className="bg-white rounded-xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
-            <div className="p-3 rounded-full bg-red-100">
+            <div className="p-3">
               <img 
                 src="/pokeball.png" 
                 alt="Pokeball" 
@@ -531,11 +551,6 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!jobName.trim()) {
-      alert('Please enter a job name');
-      return;
-    }
-    
     if (jobType === 'posting' && useApprovalWorkflow) {
       // Use the enhanced workflow with post approval
       const jobSettings: JobSettings = {
@@ -568,16 +583,18 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
           {/* Job Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Job Name
+              Job Name (optional)
             </label>
             <input
               type="text"
               value={jobName}
               onChange={(e) => setJobName(e.target.value)}
-              placeholder="Enter a name for this job..."
+              placeholder={`Job #${jobCounter}`}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              required
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Leave empty to auto-generate: Job #{jobCounter}
+            </p>
           </div>
 
           {/* Job Type Selection */}
@@ -912,11 +929,6 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
                         TradeUp Mention
                       </span>
                     )}
-                    {post.engagement_score && (
-                      <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
-                        Score: {(post.engagement_score * 100).toFixed(0)}%
-                      </span>
-                    )}
                   </div>
 
                   {/* Post content */}
@@ -949,32 +961,17 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
                     <Check className="h-4 w-4" />
                   </button>
                   
-                  {post.approved === false && (
-                    <button
-                      onClick={() => onRegenerate(post.id)}
-                      disabled={loading === `regenerate-${post.id}`}
-                      className="p-2 rounded-lg bg-blue-100 text-blue-800 hover:bg-blue-200 hover:scale-105 transition-all duration-200 disabled:opacity-50"
-                      title="Regenerate post"
-                    >
-                      {loading === `regenerate-${post.id}` ? (
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RotateCcw className="h-4 w-4" />
-                      )}
-                    </button>
-                  )}
-                  
                   <button
                     onClick={() => onReject(post.id)}
-                    disabled={post.approved === false}
-                    className={`p-2 rounded-lg transition-all duration-200 ${
-                      post.approved === false
-                        ? 'bg-red-600 text-white cursor-default'
-                        : 'bg-red-100 text-red-800 hover:bg-red-200 hover:scale-105'
-                    }`}
-                    title="Reject post"
+                    disabled={loading === `regenerate-${post.id}`}
+                    className="p-2 rounded-lg bg-red-100 text-red-800 hover:bg-red-200 hover:scale-105 transition-all duration-200 disabled:opacity-50"
+                    title="Reject and regenerate post"
                   >
-                    <X className="h-4 w-4" />
+                    {loading === `regenerate-${post.id}` ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <X className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -989,7 +986,9 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
                   }`}>
                     {post.approved 
                       ? '✓ Approved for scheduling' 
-                      : '✗ Rejected - click regenerate button to create a new version'
+                      : loading === `regenerate-${post.id}`
+                      ? '🔄 Regenerating content...'
+                      : '✗ Regenerating new version...'
                     }
                   </span>
                 </div>
