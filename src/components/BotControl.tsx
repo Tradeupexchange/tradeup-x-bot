@@ -465,12 +465,14 @@ const BotControl: React.FC = () => {
 
       {/* Enhanced Job Scheduler Modal */}
       {showScheduler && (
-        <EnhancedJobScheduler
-          onClose={() => setShowScheduler(false)}
-          onCreateJob={createNewJob}
-          onCreateJobWithApproval={createJobWithApproval}
-          loading={actionLoading === 'create' || actionLoading === 'generate-posts'}
-        />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <EnhancedJobScheduler
+            onClose={() => setShowScheduler(false)}
+            onCreateJob={createNewJob}
+            onCreateJobWithApproval={createJobWithApproval}
+            loading={actionLoading === 'create' || actionLoading === 'generate-posts'}
+          />
+        </div>
       )}
 
       {/* Post Approval Modal */}
@@ -551,158 +553,157 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (jobType === 'posting' && useApprovalWorkflow) {
-      // Use the enhanced workflow with post approval
-      const jobSettings: JobSettings = {
-        postsPerDay: settings.postsPerDay,
-        topics: settings.topics,
-        postingTimeStart: settings.postingTimeStart,
-        postingTimeEnd: settings.postingTimeEnd,
-        contentTypes: settings.contentTypes
-      };
-      onCreateJobWithApproval(jobSettings, jobName);
-    } else {
-      // Use the original workflow
-      onCreateJob(jobType, settings, jobName);
+    try {
+      if (jobType === 'posting' && useApprovalWorkflow) {
+        // Use the enhanced workflow with post approval
+        const jobSettings: JobSettings = {
+          postsPerDay: settings.postsPerDay,
+          topics: settings.topics,
+          postingTimeStart: settings.postingTimeStart,
+          postingTimeEnd: settings.postingTimeEnd,
+          contentTypes: settings.contentTypes
+        };
+        onCreateJobWithApproval(jobSettings, jobName);
+      } else {
+        // Use the original workflow
+        onCreateJob(jobType, settings, jobName);
+      }
+    } catch (error) {
+      console.error('Error in form submission:', error);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-gray-900">Create New Bot Job</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-              <X className="h-5 w-5" />
+    <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-semibold text-gray-900">Create New Bot Job</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        {/* Job Name */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Job Name (optional)
+          </label>
+          <input
+            type="text"
+            value={jobName}
+            onChange={(e) => setJobName(e.target.value)}
+            placeholder="Enter a name for this job or leave empty for auto-generation"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        {/* Job Type Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-3">
+            What should the bot do?
+          </label>
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={() => setJobType('posting')}
+              className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+                jobType === 'posting'
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <MessageSquare className="h-6 w-6 text-blue-600 mx-auto mb-2" />
+              <p className="font-medium">Post Original Content</p>
+              <p className="text-xs text-gray-600 mt-1">
+                Create and publish Pokemon TCG posts
+              </p>
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => setJobType('replying')}
+              className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+                jobType === 'replying'
+                  ? 'border-green-500 bg-green-50'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <Reply className="h-6 w-6 text-green-600 mx-auto mb-2" />
+              <p className="font-medium">Reply to Others</p>
+              <p className="text-xs text-gray-600 mt-1">
+                Engage with other Pokemon TCG posts
+              </p>
             </button>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Job Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Job Name (optional)
-            </label>
-            <input
-              type="text"
-              value={jobName}
-              onChange={(e) => setJobName(e.target.value)}
-              placeholder={`Job #${jobCounter}`}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Leave empty to auto-generate: Job #{jobCounter}
-            </p>
-          </div>
-
-          {/* Job Type Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              What should the bot do?
-            </label>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => setJobType('posting')}
-                className={`p-4 rounded-lg border-2 transition-all duration-200 ${
-                  jobType === 'posting'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <MessageSquare className="h-6 w-6 text-blue-600 mx-auto mb-2" />
-                <p className="font-medium">Post Original Content</p>
-                <p className="text-xs text-gray-600 mt-1">
-                  Create and publish Pokemon TCG posts
+        {/* Approval Workflow Toggle (only for posting) */}
+        {jobType === 'posting' && (
+          <div className="bg-blue-50 rounded-lg p-4">
+            <label className="flex items-center space-x-3">
+              <input
+                type="checkbox"
+                checked={useApprovalWorkflow}
+                onChange={(e) => setUseApprovalWorkflow(e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <div>
+                <span className="text-sm font-medium text-blue-900">
+                  Use Post Approval Workflow
+                </span>
+                <p className="text-xs text-blue-700">
+                  Generate posts for review before scheduling (Recommended)
                 </p>
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => setJobType('replying')}
-                className={`p-4 rounded-lg border-2 transition-all duration-200 ${
-                  jobType === 'replying'
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <Reply className="h-6 w-6 text-green-600 mx-auto mb-2" />
-                <p className="font-medium">Reply to Others</p>
-                <p className="text-xs text-gray-600 mt-1">
-                  Engage with other Pokemon TCG posts
-                </p>
-              </button>
-            </div>
+              </div>
+            </label>
           </div>
+        )}
 
-          {/* Approval Workflow Toggle (only for posting) */}
-          {jobType === 'posting' && (
-            <div className="bg-blue-50 rounded-lg p-4">
-              <label className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  checked={useApprovalWorkflow}
-                  onChange={(e) => setUseApprovalWorkflow(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <div>
-                  <span className="text-sm font-medium text-blue-900">
-                    Use Post Approval Workflow
-                  </span>
-                  <p className="text-xs text-blue-700">
-                    Generate posts for review before scheduling (Recommended)
-                  </p>
-                </div>
-              </label>
-            </div>
-          )}
+        {/* Job-specific settings */}
+        {jobType === 'posting' ? (
+          <EnhancedPostingSettings 
+            settings={settings} 
+            onChange={setSettings}
+            newTopic={newTopic}
+            setNewTopic={setNewTopic}
+            addTopic={addTopic}
+            removeTopic={removeTopic}
+          />
+        ) : (
+          <ReplyingSettings settings={settings} onChange={setSettings} />
+        )}
 
-          {/* Job-specific settings */}
-          {jobType === 'posting' ? (
-            <EnhancedPostingSettings 
-              settings={settings} 
-              onChange={setSettings}
-              newTopic={newTopic}
-              setNewTopic={setNewTopic}
-              addTopic={addTopic}
-              removeTopic={removeTopic}
-            />
-          ) : (
-            <ReplyingSettings settings={settings} onChange={setSettings} />
-          )}
-
-          {/* Submit buttons */}
-          <div className="flex space-x-4 pt-4 border-t border-gray-200">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200"
-            >
-              {loading ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : useApprovalWorkflow && jobType === 'posting' ? (
-                <Eye className="h-4 w-4" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-              <span>
-                {loading ? 'Processing...' : 
-                 useApprovalWorkflow && jobType === 'posting' ? 'Generate for Approval' : 'Start Job'
-                }
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
+        {/* Submit buttons */}
+        <div className="flex space-x-4 pt-4 border-t border-gray-200">
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200"
+          >
+            {loading ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : useApprovalWorkflow && jobType === 'posting' ? (
+              <Eye className="h-4 w-4" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            <span>
+              {loading ? 'Processing...' : 
+               useApprovalWorkflow && jobType === 'posting' ? 'Generate for Approval' : 'Start Job'
+              }
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
     </div>
   );
 };
