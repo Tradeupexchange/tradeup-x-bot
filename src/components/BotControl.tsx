@@ -465,7 +465,7 @@ const BotControl: React.FC = () => {
 
       {/* Enhanced Job Scheduler Modal */}
       {showScheduler && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
           <EnhancedJobScheduler
             onClose={() => setShowScheduler(false)}
             onCreateJob={createNewJob}
@@ -477,15 +477,17 @@ const BotControl: React.FC = () => {
 
       {/* Post Approval Modal */}
       {showPostApproval && (
-        <PostApprovalModal
-          posts={generatedPosts}
-          onApprove={approvePost}
-          onReject={rejectPost}
-          onRegenerate={regeneratePost}
-          onSchedule={scheduleApprovedPosts}
-          onClose={() => setShowPostApproval(false)}
-          loading={actionLoading}
-        />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+          <PostApprovalModal
+            posts={generatedPosts}
+            onApprove={approvePost}
+            onReject={rejectPost}
+            onRegenerate={regeneratePost}
+            onSchedule={scheduleApprovedPosts}
+            onClose={() => setShowPostApproval(false)}
+            loading={actionLoading}
+          />
+        </div>
       )}
     </div>
   );
@@ -870,15 +872,14 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
   const pendingCount = posts.filter(p => p.approved === null).length;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-gray-900">Review & Approve Posts</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+    <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+      <div className="p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-semibold text-gray-900">Review & Approve Posts</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
           
           {/* Stats bar */}
           <div className="mt-4 grid grid-cols-4 gap-4 text-sm">
