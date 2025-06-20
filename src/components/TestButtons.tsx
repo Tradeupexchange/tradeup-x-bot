@@ -97,7 +97,6 @@ const TestButtons: React.FC = () => {
       <div className="bg-white rounded-xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
-            <h3 className="text-lg font-semibold text-gray-900">Test X Posting</h3>
             <img 
               src="/x-logo.png" 
               alt="X Logo" 
@@ -113,6 +112,7 @@ const TestButtons: React.FC = () => {
             >
               X
             </div>
+            <h3 className="text-lg font-semibold text-gray-900">Test X Posting</h3>
           </div>
         </div>
         

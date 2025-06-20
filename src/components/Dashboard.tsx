@@ -62,8 +62,8 @@ const Dashboard: React.FC = () => {
     <div className="space-y-8">
       {/* Top row: Connection/Content Testing (left) and Posting Trends (right) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left side: Connection Test and Content Testing stacked */}
-        <div className="space-y-6">
+        {/* Left side: Connection Test and Content Testing stacked with equal heights */}
+        <div className="grid grid-rows-2 gap-6">
           <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
             <ConnectionTest />
           </div>
