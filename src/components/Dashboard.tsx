@@ -71,36 +71,42 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Connection Test and Test Buttons side by side at the top */}
+      {/* Top row: Connection/Content Testing (left) and Posting Trends (right) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
-          <ConnectionTest />
+        {/* Left side: Connection Test and Content Testing stacked */}
+        <div className="space-y-6">
+          <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
+            <ConnectionTest />
+          </div>
+          <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
+            <TestButtons />
+          </div>
         </div>
-        <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
-          <TestButtons />
-        </div>
-      </div>
-      
-      <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
-        <BotControl />
-      </div>
-      
-      <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
-        <MetricsGrid metrics={dashboardData.metrics} />
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
-          <EngagementChart data={dashboardData.engagementHistory} />
-        </div>
+        
+        {/* Right side: Posting Trends with 4 metric squares */}
         <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
           <PostingTrends />
         </div>
       </div>
       
-      {/* Modified layout - RecentPosts now takes full width */}
+      {/* Bot Control Center - full width */}
+      <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
+        <BotControl />
+      </div>
+      
+      {/* Recent Posts - full width */}
       <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
         <RecentPosts posts={dashboardData.posts} />
+      </div>
+      
+      {/* Metrics Grid - full width */}
+      <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
+        <MetricsGrid metrics={dashboardData.metrics} />
+      </div>
+      
+      {/* Engagement Chart - full width */}
+      <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
+        <EngagementChart data={dashboardData.engagementHistory} />
       </div>
     </div>
   );

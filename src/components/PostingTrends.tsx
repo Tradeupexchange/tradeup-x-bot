@@ -1,218 +1,195 @@
-import React, { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { useApi, useNextRefreshTime } from '../hooks/useApi';
+import React, { useState } from 'react';
+import { TrendingUp, MessageSquare, Heart, Users, BarChart3, X } from 'lucide-react';
 
-// Static fallback data in case API fails
-const fallbackData = [
-  { day: 'Mon', posts: 18, engagement: 7.2 },
-  { day: 'Tue', posts: 22, engagement: 8.1 },
-  { day: 'Wed', posts: 15, engagement: 6.8 },
-  { day: 'Thu', posts: 25, engagement: 9.3 },
-  { day: 'Fri', posts: 20, engagement: 8.7 },
-  { day: 'Sat', posts: 12, engagement: 5.9 },
-  { day: 'Sun', posts: 14, engagement: 6.4 },
-];
-
-interface PostingData {
-  day: string;
-  posts: number;
-  engagement: number;
-}
-
-interface ApiPost {
+interface MetricData {
   id: string;
-  content: string;
-  engagement: {
-    likes: number;
-    retweets: number;
-    replies: number;
-  };
-  timestamp: string;
-  topics: string[];
-}
-
-interface ApiResponse {
-  posts: ApiPost[];
-  total: number;
-  hasMore: boolean;
+  title: string;
+  value: string;
+  change: string;
+  changeType: 'positive' | 'negative' | 'neutral';
+  icon: React.ComponentType<any>;
+  color: string;
+  chartData: number[];
 }
 
 const PostingTrends: React.FC = () => {
-  // Use the centralized useApi hook - it automatically handles 20-minute intervals!
-  const { data: apiData, loading, error, lastFetch } = useApi<ApiResponse>('/api/posts?limit=100&offset=0');
-  const nextRefresh = useNextRefreshTime(lastFetch);
+  const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
 
-  // Process API data into chart format
-  const data = useMemo((): PostingData[] => {
-    if (!apiData?.posts || !Array.isArray(apiData.posts)) {
-      console.warn('No valid API data for posting trends, using fallback data');
-      return fallbackData;
+  // Mock data - replace with real data from your API
+  const metrics: MetricData[] = [
+    {
+      id: 'posts',
+      title: 'Posts Today',
+      value: '12',
+      change: '+3 from yesterday',
+      changeType: 'positive',
+      icon: MessageSquare,
+      color: 'blue',
+      chartData: [8, 6, 10, 12, 9, 15, 12] // Last 7 days
+    },
+    {
+      id: 'engagement',
+      title: 'Total Likes',
+      value: '234',
+      change: '+18% this week',
+      changeType: 'positive',
+      icon: Heart,
+      color: 'red',
+      chartData: [180, 195, 210, 225, 200, 220, 234]
+    },
+    {
+      id: 'replies',
+      title: 'Replies',
+      value: '18',
+      change: '+2 from yesterday',
+      changeType: 'positive',
+      icon: Users,
+      color: 'green',
+      chartData: [12, 14, 16, 15, 20, 16, 18]
+    },
+    {
+      id: 'growth',
+      title: 'Growth Rate',
+      value: '+15%',
+      change: 'vs last week',
+      changeType: 'positive',
+      icon: TrendingUp,
+      color: 'purple',
+      chartData: [5, 8, 12, 10, 15, 13, 15]
     }
+  ];
 
-    console.log('Processing posting trends data from API...');
-
-    // Filter to last 7 days
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-    const recentPosts = apiData.posts.filter(post => {
-      try {
-        const postDate = new Date(post.timestamp);
-        return postDate >= oneWeekAgo;
-      } catch {
-        return false;
-      }
-    });
-
-    console.log(`Filtered to ${recentPosts.length} posts from last 7 days for posting trends`);
-
-    // Group posts by day of week
-    const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const groupedData: { [key: string]: { posts: number; totalEngagement: number; postsList: ApiPost[] } } = {};
-
-    // Initialize all days
-    daysOfWeek.forEach(day => {
-      groupedData[day] = { posts: 0, totalEngagement: 0, postsList: [] };
-    });
-
-    // Process posts
-    recentPosts.forEach(post => {
-      try {
-        const postDate = new Date(post.timestamp);
-        const dayName = daysOfWeek[postDate.getDay()];
-        
-        if (groupedData[dayName]) {
-          groupedData[dayName].posts += 1;
-          groupedData[dayName].postsList.push(post);
-          
-          // Calculate engagement score (likes + retweets + replies)
-          const engagementScore = 
-            (post.engagement?.likes || 0) + 
-            (post.engagement?.retweets || 0) + 
-            (post.engagement?.replies || 0);
-          
-          groupedData[dayName].totalEngagement += engagementScore;
-        }
-      } catch (err) {
-        console.warn('Error processing post timestamp:', post.timestamp, err);
-      }
-    });
-
-    // Convert to chart format (Monday to Sunday order for business week)
-    const orderedDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    
-    const processedData = orderedDays.map(day => ({
-      day,
-      posts: groupedData[day].posts,
-      engagement: groupedData[day].posts > 0 
-        ? Math.round((groupedData[day].totalEngagement / groupedData[day].posts) * 10) / 10
-        : 0
-    }));
-
-    console.log('Processed posting trends chart data:', processedData);
-    return processedData;
-  }, [apiData]);
-
-  // Calculate total posts for the week
-  const { totalPosts, avgEngagement } = useMemo(() => {
-    const totals = {
-      totalPosts: data.reduce((sum, day) => sum + day.posts, 0),
-      avgEngagement: data.length > 0 
-        ? Math.round((data.reduce((sum, day) => sum + day.engagement, 0) / data.length) * 10) / 10 
-        : 0
+  const getColorClasses = (color: string, variant: 'bg' | 'text' | 'border') => {
+    const colorMap = {
+      blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' },
+      red: { bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-200' },
+      green: { bg: 'bg-green-50', text: 'text-green-600', border: 'border-green-200' },
+      purple: { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200' }
     };
-    return totals;
-  }, [data]);
+    return colorMap[color as keyof typeof colorMap][variant];
+  };
+
+  const openChart = (metricId: string) => {
+    setSelectedMetric(metricId);
+  };
+
+  const closeChart = () => {
+    setSelectedMetric(null);
+  };
+
+  const selectedMetricData = metrics.find(m => m.id === selectedMetric);
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-sm">
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-xl font-semibold text-gray-900">Weekly Posting Activity</h3>
-          <div className="flex items-center space-x-2">
-            {loading && (
-              <div className="h-2 w-2 bg-blue-500 rounded-full animate-pulse"></div>
-            )}
-            {lastFetch && (
-              <span className="text-xs text-gray-500">
-                Updated: {lastFetch.toLocaleTimeString()}
-              </span>
-            )}
-          </div>
-        </div>
-        
-        <p className="text-gray-600 text-sm mb-3">
-          Posts published by day of the week (last 7 days)
-        </p>
-
-        {/* Quick stats */}
-        <div className="flex space-x-4 text-sm">
-          <div className="bg-blue-50 px-3 py-1 rounded-lg">
-            <span className="text-blue-600 font-medium">{totalPosts} total posts</span>
-          </div>
-          <div className="bg-green-50 px-3 py-1 rounded-lg">
-            <span className="text-green-600 font-medium">{avgEngagement} avg engagement</span>
-          </div>
+    <>
+      <div className="h-full">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-gray-900">Posting Trends</h3>
+          <TrendingUp className="h-5 w-5 text-gray-400" />
         </div>
 
-        {error && (
-          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">
-            ⚠️ {error}
-          </div>
-        )}
-      </div>
-      
-      <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis 
-              dataKey="day" 
-              stroke="#6b7280"
-              fontSize={12}
-            />
-            <YAxis 
-              stroke="#6b7280"
-              fontSize={12}
-            />
-            <Tooltip 
-              formatter={(value: number, name: string) => [
-                name === 'posts' ? `${value} posts` : `${value} avg engagement`,
-                name === 'posts' ? 'Posts' : 'Engagement'
-              ]}
-              contentStyle={{
-                backgroundColor: '#fff',
-                border: '1px solid #e5e7eb',
-                borderRadius: '8px',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-              }}
-            />
-            <Bar 
-              dataKey="posts" 
-              fill="#3b82f6" 
-              radius={[4, 4, 0, 0]}
-              name="posts"
-            />
-            {/* Engagement as a second bar */}
-            <Bar 
-              dataKey="engagement" 
-              fill="#10b981" 
-              radius={[4, 4, 0, 0]}
-              name="engagement"
-            />
-          </BarChart>
-        </ResponsiveContainer>
+        {/* 2x2 Grid of Metric Squares */}
+        <div className="grid grid-cols-2 gap-4 h-[calc(100%-4rem)]">
+          {metrics.map((metric) => {
+            const Icon = metric.icon;
+            return (
+              <div
+                key={metric.id}
+                onClick={() => openChart(metric.id)}
+                className={`${getColorClasses(metric.color, 'bg')} ${getColorClasses(metric.color, 'border')} border-2 rounded-lg p-4 cursor-pointer hover:shadow-md transition-all duration-200 hover:scale-105 flex flex-col justify-between`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <Icon className={`h-5 w-5 ${getColorClasses(metric.color, 'text')}`} />
+                  <BarChart3 className="h-4 w-4 text-gray-400" />
+                </div>
+                
+                <div>
+                  <p className="text-2xl font-bold text-gray-900 mb-1">{metric.value}</p>
+                  <p className="text-sm font-medium text-gray-700 mb-1">{metric.title}</p>
+                  <p className={`text-xs ${
+                    metric.changeType === 'positive' ? 'text-green-600' : 
+                    metric.changeType === 'negative' ? 'text-red-600' : 
+                    'text-gray-600'
+                  }`}>
+                    {metric.change}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Data refresh info - now uses centralized timing */}
-      <div className="mt-4 text-xs text-gray-500 text-center">
-        Auto-refreshes every 20 minutes • Next update: {
-          nextRefresh 
-            ? nextRefresh.toLocaleTimeString()
-            : 'Soon'
-        }
-      </div>
-    </div>
+      {/* Chart Modal */}
+      {selectedMetric && selectedMetricData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <selectedMetricData.icon className={`h-6 w-6 ${getColorClasses(selectedMetricData.color, 'text')}`} />
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    {selectedMetricData.title} - 7 Day Trend
+                  </h3>
+                </div>
+                <button 
+                  onClick={closeChart}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              {/* Simple Chart Visualization */}
+              <div className="mb-6">
+                <div className="flex items-end justify-between h-48 bg-gray-50 rounded-lg p-4">
+                  {selectedMetricData.chartData.map((value, index) => {
+                    const height = (value / Math.max(...selectedMetricData.chartData)) * 100;
+                    return (
+                      <div key={index} className="flex flex-col items-center">
+                        <div 
+                          className={`w-8 ${getColorClasses(selectedMetricData.color, 'text').replace('text-', 'bg-')} rounded-t transition-all duration-500`}
+                          style={{ height: `${height}%`, minHeight: '4px' }}
+                        ></div>
+                        <span className="text-xs text-gray-500 mt-2">
+                          {index === 6 ? 'Today' : `${7-index}d ago`}
+                        </span>
+                        <span className="text-xs font-medium text-gray-700">
+                          {value}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Stats Summary */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-gray-50 rounded-lg">
+                  <p className="text-2xl font-bold text-gray-900">
+                    {selectedMetricData.chartData[selectedMetricData.chartData.length - 1]}
+                  </p>
+                  <p className="text-sm text-gray-600">Current</p>
+                </div>
+                <div className="text-center p-4 bg-gray-50 rounded-lg">
+                  <p className="text-2xl font-bold text-gray-900">
+                    {Math.round(selectedMetricData.chartData.reduce((a, b) => a + b, 0) / selectedMetricData.chartData.length)}
+                  </p>
+                  <p className="text-sm text-gray-600">7-Day Avg</p>
+                </div>
+                <div className="text-center p-4 bg-gray-50 rounded-lg">
+                  <p className="text-2xl font-bold text-gray-900">
+                    {Math.max(...selectedMetricData.chartData)}
+                  </p>
+                  <p className="text-sm text-gray-600">Peak</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
