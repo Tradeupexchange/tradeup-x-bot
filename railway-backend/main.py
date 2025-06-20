@@ -45,7 +45,7 @@ except ImportError as e:
 twitter_cache = {
     "data": None,
     "last_fetch": None,
-    "cache_duration": 300  # 5 minutes cache
+    "cache_duration": 3600  # 1 hour cache instead of 5 minutes
 }
 
 def get_twitter_client():
@@ -429,13 +429,13 @@ async def get_twitter_metrics():
         
         # Rate limiting check - if we hit rate limit recently, return cached data
         try:
-            # Get current week's tweets with minimal requests
-            start_time, end_time = get_date_range(7)
+            # ULTRA minimal API usage - only get last 5 tweets
+            start_time, end_time = get_date_range(3)  # Only last 3 days instead of 7
             
-            # Reduced max_results to minimize API usage
+            # Minimal request to stay under rate limits
             tweets = client.get_users_tweets(
                 id=user_id,
-                max_results=10,  # Reduced from 100 to 10
+                max_results=5,  # Absolute minimum
                 tweet_fields=['public_metrics', 'created_at'],
                 start_time=start_time.isoformat(),
                 end_time=end_time.isoformat()
@@ -981,11 +981,15 @@ def debug_twitter_config():
         'access_token_prefix': os.getenv('TWITTER_ACCESS_TOKEN', 'NOT_FOUND')[:15] + '...',
         'bearer_token_prefix': os.getenv('TWITTER_BEARER_TOKEN', 'NOT_FOUND')[:15] + '...',
         'user_id': os.getenv('TWITTER_USER_ID', 'NOT_FOUND'),
+        'api_secret_present': bool(os.getenv('TWITTER_API_SECRET')),
+        'access_secret_present': bool(os.getenv('TWITTER_ACCESS_SECRET')),
         'all_vars_present': bool(
             os.getenv('TWITTER_API_KEY') and 
             os.getenv('TWITTER_ACCESS_TOKEN') and 
             os.getenv('TWITTER_BEARER_TOKEN') and
-            os.getenv('TWITTER_USER_ID')
+            os.getenv('TWITTER_USER_ID') and
+            os.getenv('TWITTER_API_SECRET') and
+            os.getenv('TWITTER_ACCESS_SECRET')
         )
     }
 
