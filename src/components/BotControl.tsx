@@ -261,25 +261,26 @@ const BotControl: React.FC = () => {
       setActionLoading('generate-content');
       console.log(`📝 Generating reply for tweet #${tweetIndex + 1}...`);
 
-      // Fetch tweets from Google Sheets
-      const tweetsResult = await apiCall('/api/fetch-tweets', {
+      // Fetch tweets from Google Sheets using the correct endpoint
+      const tweetsResult = await apiCall('/api/fetch-tweets-from-sheets', {
         method: 'GET'
       });
 
       if (!tweetsResult.success || !tweetsResult.tweets || tweetsResult.tweets.length === 0) {
-        setApiError('No tweets found in Google Sheets to reply to.');
+        setApiError('No tweets found in Google Sheets to reply to. Please check your Google Sheets setup.');
         setActionLoading(null);
         return;
       }
 
       // Get the specific tweet by index
       if (tweetIndex >= tweetsResult.tweets.length) {
-        setApiError('No more tweets available in Google Sheets.');
+        setApiError(`No more tweets available in Google Sheets. Found ${tweetsResult.tweets.length} tweets total.`);
         setActionLoading(null);
         return;
       }
 
       const tweet = tweetsResult.tweets[tweetIndex];
+      console.log(`📤 Found tweet from @${tweet.author}: ${tweet.text.substring(0, 50)}...`);
       
       // Generate reply for this specific tweet
       const replyResult = await apiCall('/api/generate-reply', {
@@ -303,6 +304,8 @@ const BotControl: React.FC = () => {
           scheduledTime: `${9 + Math.floor(tweetIndex / 2)}:${(tweetIndex % 2) * 30}0`.padStart(5, '0'),
           tweetIndex: tweetIndex // Track which tweet this is for rejection handling
         };
+
+        console.log(`✅ Generated reply: ${replyResult.reply.substring(0, 50)}...`);
 
         // Add this reply to the current content
         setGeneratedContent(prev => [...prev, newReply]);
