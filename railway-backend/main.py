@@ -41,36 +41,87 @@ async def preflight_handler(rest_of_path: str):
     )
 
 # ===== IMPROVED IMPORT SECTION WITH BETTER ERROR HANDLING =====
-def setup_reply_functions():
+ddef setup_reply_functions():
     """Setup reply generation functions with better error handling"""
     global generate_reply, post_reply_tweet, generate_and_post_replies
     
+    # Add current directory to path to help with imports
+    import sys
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    if current_dir not in sys.path:
+        sys.path.insert(0, current_dir)
+    
+    # Try multiple import strategies for reply_generator
+    reply_import_success = False
+    
+    # Strategy 1: Try src.reply_generator
     try:
-        # Try to import the actual reply generator
         from src.reply_generator import generate_reply as actual_generate_reply
         generate_reply = actual_generate_reply
-        logger.info("✅ Successfully imported actual LLM reply generator")
-        
-        # Test it quickly
-        test_result = generate_reply("test tweet", "test_user")
-        logger.info(f"✅ LLM test result: {str(test_result)[:100]}...")
-        
+        logger.info("✅ Successfully imported actual LLM reply generator (src.reply_generator)")
+        reply_import_success = True
     except ImportError as e:
-        logger.error(f"❌ Could not import reply_generator: {e}")
-        logger.error("🔄 Using dummy reply function")
+        logger.warning(f"⚠️ Could not import from src.reply_generator: {e}")
+    
+    # Strategy 2: Try direct import if src. failed
+    if not reply_import_success:
+        try:
+            import reply_generator
+            generate_reply = reply_generator.generate_reply
+            logger.info("✅ Successfully imported actual LLM reply generator (direct import)")
+            reply_import_success = True
+        except ImportError as e:
+            logger.warning(f"⚠️ Could not import reply_generator directly: {e}")
+    
+    # Strategy 3: Try with sys.path manipulation
+    if not reply_import_success:
+        try:
+            # Try adding src directory to path
+            src_dir = os.path.join(current_dir, 'src')
+            if os.path.exists(src_dir) and src_dir not in sys.path:
+                sys.path.insert(0, src_dir)
+            
+            import reply_generator
+            generate_reply = reply_generator.generate_reply
+            logger.info("✅ Successfully imported actual LLM reply generator (with path manipulation)")
+            reply_import_success = True
+        except ImportError as e:
+            logger.warning(f"⚠️ Could not import with path manipulation: {e}")
+    
+    # Test the imported function if successful
+    if reply_import_success:
+        try:
+            # Test it quickly to make sure it works
+            test_result = generate_reply("test tweet", "test_user")
+            logger.info(f"✅ LLM test result: {str(test_result)[:100]}...")
+            
+            # Verify it's not the dummy function by checking the response
+            if isinstance(test_result, dict) and test_result.get("content", "").startswith("Thanks for sharing! Great point about Pokemon TCG"):
+                logger.warning("⚠️ Function imported but appears to be returning dummy responses")
+                reply_import_success = False
+            else:
+                logger.info("🎯 LLM function is working correctly and generating custom responses!")
+                
+        except Exception as e:
+            logger.error(f"❌ Error testing imported reply generator: {e}")
+            reply_import_success = False
+    
+    # Fallback to dummy function if all imports failed
+    if not reply_import_success:
+        logger.error("❌ All import strategies failed, using dummy reply function")
+        logger.error("🔄 Please check:")
+        logger.error("   - reply_generator.py exists and has generate_reply function")
+        logger.error("   - No syntax errors in reply_generator.py")
+        logger.error("   - All dependencies (llm_manager, openai, etc.) are available")
         
         def generate_reply(tweet_text, tweet_author=None, conversation_history=None):
-            return {"content": f"Thanks for sharing! Great point about Pokemon TCG.", "success": True}
-    
-    except Exception as e:
-        logger.error(f"❌ Error testing reply generator: {e}")
-        logger.error("🔄 Using dummy reply function")
+            return {"content": "Thanks for sharing! Great point about Pokemon TCG.", "success": True}
         
-        def generate_reply(tweet_text, tweet_author=None, conversation_history=None):
-            return {"content": f"Thanks for sharing! Great point about Pokemon TCG.", "success": True}
+        logger.error("🚨 Currently using DUMMY function - replies will be generic!")
     
+    # Import Twitter poster functions
     try:
-        # Try to import twitter poster functions
         from src.twitter_poster import post_reply_tweet as actual_post_reply_tweet
         from src.twitter_poster import generate_and_post_replies as actual_generate_and_post_replies
         
@@ -86,6 +137,14 @@ def setup_reply_functions():
         
         def generate_and_post_replies(num_replies=5, post_to_twitter=False, require_confirmation=False):
             return []
+        
+        logger.error("🔄 Using dummy twitter_poster functions")
+    
+    # Final status report
+    logger.info("🔍 Setup complete. Function status:")
+    logger.info(f"   - generate_reply: {'✅ REAL LLM' if reply_import_success else '❌ DUMMY'}")
+    logger.info(f"   - post_reply_tweet: {'✅ Available' if 'actual_post_reply_tweet' in locals() else '❌ Dummy'}")
+    logger.info(f"   - generate_and_post_replies: {'✅ Available' if 'actual_generate_and_post_replies' in locals() else '❌ Dummy'}")
 
 # Call this function to setup reply functions
 setup_reply_functions()
