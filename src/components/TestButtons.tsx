@@ -94,40 +94,45 @@ const TestButtons: React.FC = () => {
 
   return (
     <>
-      <div className="bg-white rounded-xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <img 
-              src="/x-logo.png" 
-              alt="X Logo" 
-              className="h-6 w-6"
-              onError={(e) => {
-                // Fallback to a simple X if logo image fails to load
-                e.currentTarget.style.display = 'none';
-                e.currentTarget.nextElementSibling!.style.display = 'block';
-              }}
-            />
-            <div 
-              className="h-6 w-6 bg-black rounded flex items-center justify-center text-white font-bold text-sm hidden"
-            >
-              X
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900">Test Posting</h3>
+      <div className="bg-white rounded-xl p-6 shadow-sm h-full flex flex-col">
+        {/* Header with icon and title */}
+        <div className="flex items-center space-x-3 mb-4">
+          <img 
+            src="/x-logo.png" 
+            alt="X Logo" 
+            className="h-6 w-6"
+            onError={(e) => {
+              // Fallback to a simple X if logo image fails to load
+              e.currentTarget.style.display = 'none';
+              e.currentTarget.nextElementSibling!.style.display = 'block';
+            }}
+          />
+          <div 
+            className="h-6 w-6 bg-black rounded flex items-center justify-center text-white font-bold text-sm hidden"
+          >
+            X
           </div>
+          <h3 className="text-lg font-semibold text-gray-900">Test Posting</h3>
         </div>
         
-        <div className="flex justify-center">
+        {/* Content area that grows to push button to bottom */}
+        <div className="flex-1">
+          {/* Any additional content can go here */}
+        </div>
+
+        {/* Generate button centered at bottom - matching Test Connection button position */}
+        <div className="flex justify-center mt-4">
           <button
             onClick={testGenerateContent}
             disabled={loading === 'generate'}
-            className="flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200"
+            className="flex items-center justify-center space-x-2 px-8 py-3 bg-blue-600 text-white text-base font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200 min-w-[200px]"
           >
             {loading === 'generate' ? (
               <RefreshCw className="h-5 w-5 animate-spin" />
             ) : (
               <MessageSquare className="h-5 w-5" />
             )}
-            <span className="font-medium">
+            <span>
               {loading === 'generate' ? 'Generating...' : 'Generate Content'}
             </span>
           </button>
