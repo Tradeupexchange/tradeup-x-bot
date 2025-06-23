@@ -40,20 +40,55 @@ async def preflight_handler(rest_of_path: str):
         }
     )
 
-# Import reply modules with error handling
-try:
-    from src.reply_generator import generate_reply
-    from src.twitter_poster import post_reply_tweet, generate_and_post_replies
-    logger.info("Successfully imported reply generation modules")
-except ImportError as e:
-    logger.warning(f"Could not import reply modules: {e}")
-    # Create dummy functions
-    def generate_reply(tweet_text, tweet_author=None, conversation_history=None):
-        return {"content": f"Thanks for sharing! Great point about Pokemon TCG.", "success": True}
-    def post_reply_tweet(content, reply_to_id):
-        return {"success": False, "error": "Reply integration not available"}
-    def generate_and_post_replies(num_replies=5, post_to_twitter=False, require_confirmation=False):
-        return []
+# ===== IMPROVED IMPORT SECTION WITH BETTER ERROR HANDLING =====
+def setup_reply_functions():
+    """Setup reply generation functions with better error handling"""
+    global generate_reply, post_reply_tweet, generate_and_post_replies
+    
+    try:
+        # Try to import the actual reply generator
+        from src.reply_generator import generate_reply as actual_generate_reply
+        generate_reply = actual_generate_reply
+        logger.info("✅ Successfully imported actual LLM reply generator")
+        
+        # Test it quickly
+        test_result = generate_reply("test tweet", "test_user")
+        logger.info(f"✅ LLM test result: {str(test_result)[:100]}...")
+        
+    except ImportError as e:
+        logger.error(f"❌ Could not import reply_generator: {e}")
+        logger.error("🔄 Using dummy reply function")
+        
+        def generate_reply(tweet_text, tweet_author=None, conversation_history=None):
+            return {"content": f"Thanks for sharing! Great point about Pokemon TCG.", "success": True}
+    
+    except Exception as e:
+        logger.error(f"❌ Error testing reply generator: {e}")
+        logger.error("🔄 Using dummy reply function")
+        
+        def generate_reply(tweet_text, tweet_author=None, conversation_history=None):
+            return {"content": f"Thanks for sharing! Great point about Pokemon TCG.", "success": True}
+    
+    try:
+        # Try to import twitter poster functions
+        from src.twitter_poster import post_reply_tweet as actual_post_reply_tweet
+        from src.twitter_poster import generate_and_post_replies as actual_generate_and_post_replies
+        
+        post_reply_tweet = actual_post_reply_tweet
+        generate_and_post_replies = actual_generate_and_post_replies
+        logger.info("✅ Successfully imported twitter_poster functions")
+        
+    except ImportError as e:
+        logger.error(f"❌ Could not import twitter_poster: {e}")
+        
+        def post_reply_tweet(content, reply_to_id):
+            return {"success": False, "error": "Reply integration not available"}
+        
+        def generate_and_post_replies(num_replies=5, post_to_twitter=False, require_confirmation=False):
+            return []
+
+# Call this function to setup reply functions
+setup_reply_functions()
 
 # Twitter client function
 def get_twitter_client():
@@ -104,6 +139,116 @@ class BulkReplyRequest(BaseModel):
     num_replies: int = 5
     post_to_twitter: bool = False
     require_confirmation: bool = False
+
+# ===== DEBUG ENDPOINTS =====
+@app.get("/api/debug-reply-generation")
+async def debug_reply_generation():
+    """Debug endpoint to check reply generation setup"""
+    try:
+        # Test the import
+        import_status = {}
+        
+        try:
+            from src.reply_generator import generate_reply as actual_generate_reply
+            import_status["reply_generator"] = {
+                "imported": True,
+                "function_type": str(type(actual_generate_reply)),
+                "error": None
+            }
+        except ImportError as e:
+            import_status["reply_generator"] = {
+                "imported": False,
+                "error": str(e)
+            }
+        
+        try:
+            from src.twitter_poster import post_reply_tweet, generate_and_post_replies
+            import_status["twitter_poster"] = {
+                "imported": True,
+                "functions_available": {
+                    "post_reply_tweet": "post_reply_tweet" in globals(),
+                    "generate_and_post_replies": "generate_and_post_replies" in globals()
+                },
+                "error": None
+            }
+        except ImportError as e:
+            import_status["twitter_poster"] = {
+                "imported": False,
+                "error": str(e)
+            }
+        
+        # Test the generate_reply function that's currently being used
+        test_tweet = "Just pulled a Charizard card from my Pokemon TCG pack! So excited!"
+        test_result = generate_reply(test_tweet, "TestUser")
+        
+        # Check if we're using the dummy function
+        is_using_dummy = (
+            isinstance(test_result, dict) and 
+            test_result.get("content", "").startswith("Thanks for sharing! Great point about Pokemon TCG")
+        )
+        
+        return {
+            "success": True,
+            "import_status": import_status,
+            "current_function_test": {
+                "input_tweet": test_tweet,
+                "generated_reply": test_result,
+                "is_using_dummy_function": is_using_dummy,
+                "function_location": str(generate_reply) if 'generate_reply' in globals() else "Not found"
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.get("/api/test-actual-llm")
+async def test_actual_llm():
+    """Test the actual LLM reply generation directly"""
+    try:
+        # Try to import and use the actual reply generator
+        from src.reply_generator import generate_reply as real_generate_reply
+        
+        test_tweet = "Just pulled a Charizard card from my Pokemon TCG pack! So excited!"
+        test_author = "TestUser"
+        
+        # Test the real function
+        result = real_generate_reply(test_tweet, test_author)
+        
+        return {
+            "success": True,
+            "message": "Successfully imported and tested actual LLM",
+            "test_input": {
+                "tweet": test_tweet,
+                "author": test_author
+            },
+            "llm_output": result,
+            "function_info": str(real_generate_reply),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except ImportError as e:
+        return {
+            "success": False,
+            "error": f"Could not import reply_generator: {str(e)}",
+            "possible_causes": [
+                "src/reply_generator.py doesn't exist",
+                "reply_generator.py is missing the generate_reply function", 
+                "OpenAI API key not configured",
+                "Missing dependencies (openai, etc.)"
+            ],
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Error testing actual LLM: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
 
 # Health check endpoint
 @app.get("/")
@@ -498,7 +643,9 @@ async def test_endpoint():
             "/api/bot-job/create-reply-job",
             "/api/generate-content",
             "/api/generate-reply",
-            "/api/post-reply"
+            "/api/post-reply",
+            "/api/debug-reply-generation",
+            "/api/test-actual-llm"
         ]
     }
 
