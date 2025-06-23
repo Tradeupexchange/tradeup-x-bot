@@ -142,25 +142,7 @@ async def get_bot_status():
                 "successRate": 94.5
             },
             "jobs": [
-                # Add your actual jobs here when you have job management
-                {
-                    "id": "demo_job_1",
-                    "name": "Demo Posting Job",
-                    "type": "posting",
-                    "status": "running",
-                    "settings": {
-                        "postsPerDay": 5,
-                        "topics": ["Pokemon TCG"]
-                    },
-                    "createdAt": datetime.now().isoformat(),
-                    "lastRun": datetime.now().isoformat(), 
-                    "nextRun": (datetime.now() + timedelta(hours=2)).isoformat(),
-                    "stats": {
-                        "postsToday": 3,
-                        "repliesToday": 0,
-                        "successRate": 100.0
-                    }
-                }
+                # No demo jobs - removed as requested
             ],
             "timestamp": datetime.now().isoformat()
         }
@@ -906,6 +888,8 @@ async def test_reply_system():
             "timestamp": datetime.now().isoformat()
         }
 
+# ===== FIXED GOOGLE SHEETS ENDPOINTS =====
+
 @app.get("/api/fetch-tweets-from-sheets")
 async def fetch_tweets_from_sheets():
     """Fetch tweets from Google Sheets for reply generation"""
@@ -924,11 +908,11 @@ async def fetch_tweets_from_sheets():
                 "timestamp": datetime.now().isoformat()
             }
         
-        # Get tweets from your Google Sheets
-        # You might need to adjust this based on your actual Google Sheets setup
+        # Get tweets from your Google Sheets using the correct function signature
+        # FIXED: Using correct parameter name (num_replies instead of max_tweets)
         tweets_data = get_tweets_for_reply(
-            sheet_url="https://docs.google.com/spreadsheets/d/1U50KjbsYUswh0IGWTPgeP97Y2kXRcYM_H1VoeyAQhpw/edit?gid=0#gid=0",
-            max_tweets=20  # Get more tweets so we have enough for rejection workflow
+            "https://docs.google.com/spreadsheets/d/1U50KjbsYUswh0IGWTPgeP97Y2kXRcYM_H1VoeyAQhpw/edit?gid=0#gid=0",
+            20  # Get 20 tweets so we have enough for the rejection workflow
         )
         
         if not tweets_data or len(tweets_data) == 0:
@@ -942,17 +926,20 @@ async def fetch_tweets_from_sheets():
         
         # Convert to the format expected by the frontend
         processed_tweets = []
-        for tweet_data in tweets_data:
+        for i, tweet_data in enumerate(tweets_data):
             processed_tweet = {
-                "id": tweet_data.get("tweet_id", f"tweet_{len(processed_tweets)}"),
+                "id": tweet_data.get("tweet_id", f"tweet_{i}"),
                 "text": tweet_data.get("tweet_content", ""),
                 "author": tweet_data.get("username", "unknown"),
                 "author_name": tweet_data.get("username", "Unknown User"),
                 "created_at": datetime.now().isoformat(),
                 "url": tweet_data.get("url", ""),
-                "conversation_id": tweet_data.get("tweet_id", "")
+                "conversation_id": tweet_data.get("tweet_id", f"tweet_{i}")
             }
-            processed_tweets.append(processed_tweet)
+            
+            # Only add if we have actual content
+            if processed_tweet["text"].strip():
+                processed_tweets.append(processed_tweet)
         
         logger.info(f"Successfully fetched {len(processed_tweets)} tweets from Google Sheets")
         
@@ -973,7 +960,6 @@ async def fetch_tweets_from_sheets():
             "timestamp": datetime.now().isoformat()
         }
 
-# ALSO ADD A TEST ENDPOINT TO CHECK YOUR GOOGLE SHEETS CONNECTION
 @app.get("/api/test-google-sheets")
 async def test_google_sheets_connection():
     """Test Google Sheets connection and show what data is available"""
@@ -984,6 +970,7 @@ async def test_google_sheets_connection():
         try:
             from src.google_sheets_reader import get_tweets_for_reply
             import_success = True
+            import_error = None
         except ImportError as e:
             import_success = False
             import_error = str(e)
@@ -993,29 +980,32 @@ async def test_google_sheets_connection():
             "timestamp": datetime.now().isoformat(),
             "google_sheets_reader": {
                 "imported": import_success,
-                "error": import_error if not import_success else None
+                "error": import_error
             }
         }
         
         if import_success:
-            # Try to fetch a small sample
+            # Try to fetch a small sample using the correct function signature
+            # FIXED: Using correct parameter name (num_replies instead of max_tweets)
             try:
                 sample_tweets = get_tweets_for_reply(
-                    sheet_url="https://docs.google.com/spreadsheets/d/1U50KjbsYUswh0IGWTPgeP97Y2kXRcYM_H1VoeyAQhpw/edit?gid=0#gid=0",
-                    max_tweets=3
+                    "https://docs.google.com/spreadsheets/d/1U50KjbsYUswh0IGWTPgeP97Y2kXRcYM_H1VoeyAQhpw/edit?gid=0#gid=0",
+                    3  # Just get 3 tweets for testing
                 )
                 
                 result["sheets_data"] = {
                     "accessible": True,
                     "tweet_count": len(sample_tweets) if sample_tweets else 0,
                     "sample_tweets": sample_tweets[:2] if sample_tweets else [],
-                    "data_structure": list(sample_tweets[0].keys()) if sample_tweets and len(sample_tweets) > 0 else []
+                    "data_structure": list(sample_tweets[0].keys()) if sample_tweets and len(sample_tweets) > 0 else [],
+                    "function_signature": "get_tweets_for_reply(sheet_url, num_replies)"
                 }
                 
             except Exception as sheets_error:
                 result["sheets_data"] = {
                     "accessible": False,
-                    "error": str(sheets_error)
+                    "error": str(sheets_error),
+                    "function_signature": "get_tweets_for_reply(sheet_url, num_replies)"
                 }
         
         return result
