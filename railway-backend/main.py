@@ -55,6 +55,28 @@ except ImportError as e:
     def generate_and_post_replies(num_replies=5, post_to_twitter=False, require_confirmation=False):
         return []
 
+# Twitter client function
+def get_twitter_client():
+    """Get Twitter API client - implement this based on your Twitter setup"""
+    try:
+        # Replace with your actual Twitter client setup
+        import tweepy
+        from src.config import TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET
+        
+        if not all([TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET]):
+            return None
+            
+        client = tweepy.Client(
+            consumer_key=TWITTER_API_KEY,
+            consumer_secret=TWITTER_API_SECRET,
+            access_token=TWITTER_ACCESS_TOKEN,
+            access_token_secret=TWITTER_ACCESS_SECRET
+        )
+        return client
+    except Exception as e:
+        logger.error(f"Error creating Twitter client: {e}")
+        return None
+
 # Add these new Pydantic models after your existing ones
 class GenerateReplyRequest(BaseModel):
     tweet_text: str
@@ -102,7 +124,403 @@ async def health_check():
         "cors": "enabled"
     }
 
-# Add these new endpoints after your existing endpoints
+# ===== MISSING ENDPOINT 1: Bot Status =====
+@app.get("/api/bot-status")
+async def get_bot_status():
+    """Get current bot status and jobs list"""
+    try:
+        logger.info("Getting bot status...")
+        
+        # Mock data - replace with your actual bot status logic
+        status = {
+            "running": True,
+            "uptime": "2 hours 15 minutes", 
+            "lastRun": datetime.now().isoformat(),
+            "stats": {
+                "postsToday": 8,
+                "repliesToday": 12,
+                "successRate": 94.5
+            },
+            "jobs": [
+                # Add your actual jobs here when you have job management
+                {
+                    "id": "demo_job_1",
+                    "name": "Demo Posting Job",
+                    "type": "posting",
+                    "status": "running",
+                    "settings": {
+                        "postsPerDay": 5,
+                        "topics": ["Pokemon TCG"]
+                    },
+                    "createdAt": datetime.now().isoformat(),
+                    "lastRun": datetime.now().isoformat(), 
+                    "nextRun": (datetime.now() + timedelta(hours=2)).isoformat(),
+                    "stats": {
+                        "postsToday": 3,
+                        "repliesToday": 0,
+                        "successRate": 100.0
+                    }
+                }
+            ],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        logger.info(f"Returning bot status with {len(status['jobs'])} jobs")
+        return status
+        
+    except Exception as e:
+        logger.error(f"Error getting bot status: {e}")
+        return {
+            "running": False,
+            "error": str(e),
+            "jobs": [],
+            "timestamp": datetime.now().isoformat()
+        }
+
+# ===== MISSING ENDPOINT 2: Posts =====
+@app.get("/api/posts")
+async def get_posts():
+    """Get recent posts"""
+    try:
+        logger.info("Getting recent posts...")
+        
+        # Mock posts data - replace with your actual posts logic
+        posts = [
+            {
+                "id": "post_1",
+                "content": "Just pulled an amazing Charizard card! The artwork is incredible 🔥",
+                "timestamp": datetime.now().isoformat(),
+                "platform": "twitter",
+                "engagement": {
+                    "likes": 42,
+                    "retweets": 12,
+                    "replies": 8
+                },
+                "status": "posted"
+            },
+            {
+                "id": "post_2", 
+                "content": "Building a new deck around Pikachu VMAX. Any suggestions for support cards?",
+                "timestamp": (datetime.now() - timedelta(hours=2)).isoformat(),
+                "platform": "twitter",
+                "engagement": {
+                    "likes": 28,
+                    "retweets": 5,
+                    "replies": 15
+                },
+                "status": "posted"
+            },
+            {
+                "id": "post_3",
+                "content": "The new Pokemon TCG set releases tomorrow! Who else is excited? 🎉",
+                "timestamp": (datetime.now() - timedelta(hours=4)).isoformat(),
+                "platform": "twitter", 
+                "engagement": {
+                    "likes": 67,
+                    "retweets": 23,
+                    "replies": 12
+                },
+                "status": "posted"
+            }
+        ]
+        
+        logger.info(f"Returning {len(posts)} recent posts")
+        return {
+            "success": True,
+            "posts": posts,
+            "total": len(posts),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting posts: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "posts": [],
+            "timestamp": datetime.now().isoformat()
+        }
+
+# ===== MISSING ENDPOINT 3: Topics =====
+@app.get("/api/topics")
+async def get_topics():
+    """Get available topics for content generation"""
+    try:
+        logger.info("Getting available topics...")
+        
+        # Common Pokemon TCG topics
+        topics = [
+            {
+                "id": "card_pulls",
+                "name": "Card Pulls & Openings",
+                "description": "Posts about opening packs and showing off pulls",
+                "popularity": 95,
+                "engagement_rate": 8.2
+            },
+            {
+                "id": "deck_building", 
+                "name": "Deck Building",
+                "description": "Strategy and deck construction content",
+                "popularity": 87,
+                "engagement_rate": 7.5
+            },
+            {
+                "id": "market_analysis",
+                "name": "Market & Pricing",
+                "description": "Card values, market trends, and investment advice", 
+                "popularity": 72,
+                "engagement_rate": 6.8
+            },
+            {
+                "id": "tournaments",
+                "name": "Tournaments & Events",
+                "description": "Competitive play and tournament coverage",
+                "popularity": 68,
+                "engagement_rate": 7.1
+            },
+            {
+                "id": "collecting",
+                "name": "Collecting & Grading",
+                "description": "Collection showcases and card grading content",
+                "popularity": 79,
+                "engagement_rate": 8.0
+            },
+            {
+                "id": "news_updates",
+                "name": "News & Updates", 
+                "description": "Latest Pokemon TCG news and announcements",
+                "popularity": 83,
+                "engagement_rate": 6.9
+            }
+        ]
+        
+        logger.info(f"Returning {len(topics)} available topics")
+        return {
+            "success": True,
+            "topics": topics,
+            "total": len(topics),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting topics: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "topics": [],
+            "timestamp": datetime.now().isoformat()
+        }
+
+# Job Management Endpoints
+@app.post("/api/bot-job/create-posting-job")
+async def create_posting_job(request: Dict[str, Any]):
+    """Create a new posting job"""
+    try:
+        logger.info("Creating new posting job...")
+        
+        settings = {
+            "type": "posting",
+            "name": request.get("name", "Untitled Posting Job"),
+            "postsPerDay": request.get("settings", {}).get("postsPerDay", 5),
+            "topics": request.get("settings", {}).get("topics", ["Pokemon TCG"]),
+            "postingTimeStart": request.get("settings", {}).get("postingTimeStart", "09:00"),
+            "postingTimeEnd": request.get("settings", {}).get("postingTimeEnd", "17:00"),
+            "contentTypes": request.get("settings", {}).get("contentTypes", {
+                "cardPulls": True,
+                "deckBuilding": True,
+                "marketAnalysis": True,
+                "tournaments": False
+            }),
+            "approvedPosts": request.get("settings", {}).get("approvedPosts", []),
+            "autoPost": request.get("settings", {}).get("autoPost", False)
+        }
+        
+        # Create job
+        job = {
+            "id": f"posting_job_{int(datetime.now().timestamp())}",
+            "type": "posting",
+            "name": settings["name"],
+            "settings": settings,
+            "status": "created",
+            "created_at": datetime.now().isoformat(),
+            "stats": {
+                "postsToday": 0,
+                "repliesToday": 0,
+                "successRate": 100.0
+            }
+        }
+        
+        logger.info(f"Created posting job: {job['id']}")
+        return {
+            "success": True,
+            "job": job,
+            "message": "Posting job created successfully",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating posting job: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/bot-job/{job_id}/start")
+async def start_job(job_id: str):
+    """Start a specific job"""
+    try:
+        logger.info(f"Starting job {job_id}")
+        
+        return {
+            "success": True,
+            "job_id": job_id,
+            "message": "Job started successfully",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error starting job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/bot-job/{job_id}/stop")
+async def stop_job(job_id: str):
+    """Stop a specific job"""
+    try:
+        logger.info(f"Stopping job {job_id}")
+        
+        return {
+            "success": True,
+            "job_id": job_id,
+            "message": "Job stopped successfully",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error stopping job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/bot-job/{job_id}/pause")
+async def pause_job(job_id: str):
+    """Pause a specific job"""
+    try:
+        logger.info(f"Pausing job {job_id}")
+        
+        return {
+            "success": True,
+            "job_id": job_id,
+            "message": "Job paused successfully",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error pausing job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/bot-job/{job_id}/rename")
+async def rename_job(job_id: str, request: Dict[str, Any]):
+    """Rename a specific job"""
+    try:
+        new_name = request.get("name", "").strip()
+        if not new_name:
+            raise HTTPException(status_code=400, detail="Name cannot be empty")
+        
+        logger.info(f"Renaming job {job_id} to {new_name}")
+        
+        return {
+            "success": True,
+            "job_id": job_id,
+            "name": new_name,
+            "message": "Job renamed successfully",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error renaming job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/generate-content")
+async def generate_content_endpoint(request: Dict[str, Any]):
+    """Generate content for posts"""
+    try:
+        topic = request.get("topic", "Pokemon TCG")
+        count = request.get("count", 1)
+        
+        logger.info(f"Generating {count} content piece(s) for topic: {topic}")
+        
+        # Mock content generation - replace with your actual content generation logic
+        content_examples = {
+            "card_pulls": f"Just pulled an incredible {topic} card! The foil treatment is absolutely stunning 🔥✨",
+            "deck_building": f"Working on a new {topic} deck strategy. The synergy between these cards is amazing!",
+            "market_analysis": f"Interesting price movement in the {topic} market this week. Some cards are really gaining value!",
+            "tournaments": f"Excited for the upcoming {topic} tournament! Been practicing with this deck for weeks 🏆",
+            "collecting": f"Added another graded {topic} card to my collection! PSA 10 condition is chef's kiss 💎",
+            "news_updates": f"Big news in the {topic} world! Can't wait to see what this means for the community 📰"
+        }
+        
+        # Pick appropriate content based on topic
+        content_key = topic.lower().replace(" ", "_").replace("pokemon_tcg", "card_pulls")
+        content = content_examples.get(content_key, content_examples["card_pulls"])
+        
+        mock_content = {
+            "content": content,
+            "engagement_score": 85.5,
+            "hashtags": ["#PokemonTCG", "#CardCollection", "#Pokemon"],
+            "mentions_tradeup": topic.lower() not in ["pokemon tcg", "card_pulls"]
+        }
+        
+        return {
+            "success": True,
+            "content": mock_content,
+            "topic": topic,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating content: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+# Generic job creation for backward compatibility
+@app.post("/api/bot-job/create")
+async def create_bot_job_generic(request: Dict[str, Any]):
+    """Generic job creation endpoint"""
+    try:
+        job_type = request.get("type", "posting")
+        
+        if job_type == "posting":
+            return await create_posting_job(request)
+        elif job_type == "replying":
+            return await create_reply_job(request)
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown job type: {job_type}")
+            
+    except Exception as e:
+        logger.error(f"Error in generic job creation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Test endpoint
+@app.get("/api/test")
+async def test_endpoint():
+    """Simple test endpoint"""
+    return {
+        "success": True,
+        "message": "API is working correctly",
+        "timestamp": datetime.now().isoformat(),
+        "endpoints_available": [
+            "/api/health",
+            "/api/bot-status", 
+            "/api/posts",
+            "/api/topics",
+            "/api/bot-job/create",
+            "/api/bot-job/create-posting-job",
+            "/api/bot-job/create-reply-job",
+            "/api/generate-content",
+            "/api/generate-reply",
+            "/api/post-reply"
+        ]
+    }
+
+# === ALL YOUR EXISTING ENDPOINTS BELOW ===
 
 @app.post("/api/generate-reply")
 async def generate_reply_endpoint(request: GenerateReplyRequest):
@@ -369,20 +787,19 @@ async def bulk_generate_replies(request: BulkReplyRequest):
             "timestamp": datetime.now().isoformat()
         }
 
-# Enhanced bot status to include reply metrics
 @app.get("/api/bot-status-with-replies")
 async def get_bot_status_with_replies():
     """Get bot status including reply metrics"""
     try:
-        # Get base status (you'll need to implement this based on your existing code)
-        base_status = await get_bot_status() if 'get_bot_status' in globals() else {"status": "running"}
+        # Get base status
+        base_status = await get_bot_status()
         
         # Add reply-specific metrics
         reply_metrics = {
             "repliesEnabled": True,
-            "lastReplyTime": None,  # You can track this in your bot_manager
-            "replySuccessRate": 95.0,  # Track this based on actual reply attempts
-            "avgResponseTime": "2.3s",  # Track average time to generate and post replies
+            "lastReplyTime": None,
+            "replySuccessRate": 95.0,
+            "avgResponseTime": "2.3s",
         }
         
         # Merge with base status
@@ -398,7 +815,6 @@ async def get_bot_status_with_replies():
             "timestamp": datetime.now().isoformat()
         }
 
-# Reply job management endpoints
 @app.post("/api/bot-job/create-reply-job")
 async def create_reply_job(request: Dict[str, Any]):
     """Create a new reply monitoring job"""
@@ -423,9 +839,15 @@ async def create_reply_job(request: Dict[str, Any]):
             job = {
                 "id": f"reply_job_{int(datetime.now().timestamp())}",
                 "type": "replying",
+                "name": request.get("name", "Reply Job"),
                 "settings": settings,
                 "status": "created",
-                "created_at": datetime.now().isoformat()
+                "created_at": datetime.now().isoformat(),
+                "stats": {
+                    "postsToday": 0,
+                    "repliesToday": 0,
+                    "successRate": 100.0
+                }
             }
         
         logger.info(f"Created reply job: {job}")
@@ -440,7 +862,6 @@ async def create_reply_job(request: Dict[str, Any]):
         logger.error(f"Error creating reply job: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Test endpoint to verify reply functionality
 @app.get("/api/test-reply-system")
 async def test_reply_system():
     """Test endpoint to verify reply system is working"""
@@ -449,7 +870,7 @@ async def test_reply_system():
         test_tweet = "Just pulled a Charizard card from my Pokemon TCG pack! So excited!"
         test_reply = generate_reply(test_tweet, "TestUser")
         
-        # Test Twitter API connection (you'll need to implement get_twitter_client)
+        # Test Twitter API connection
         twitter_connected = False
         try:
             if 'get_twitter_client' in globals():
@@ -484,257 +905,6 @@ async def test_reply_system():
             "cors_enabled": True,
             "timestamp": datetime.now().isoformat()
         }
-
-# ADD THESE MISSING ENDPOINTS TO YOUR main.py
-
-# You need to add these functions that your endpoints reference
-def get_twitter_client():
-    """Get Twitter API client - implement this based on your Twitter setup"""
-    try:
-        # Replace with your actual Twitter client setup
-        import tweepy
-        from src.config import TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET
-        
-        if not all([TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET]):
-            return None
-            
-        client = tweepy.Client(
-            consumer_key=TWITTER_API_KEY,
-            consumer_secret=TWITTER_API_SECRET,
-            access_token=TWITTER_ACCESS_TOKEN,
-            access_token_secret=TWITTER_ACCESS_SECRET
-        )
-        return client
-    except Exception as e:
-        logger.error(f"Error creating Twitter client: {e}")
-        return None
-
-# 1. MISSING: Bot Status Endpoint
-@app.get("/api/bot-status")
-async def get_bot_status():
-    """Get current bot status and jobs"""
-    try:
-        # Mock bot status - replace with your actual bot status logic
-        status = {
-            "running": True,
-            "uptime": "2 hours 15 minutes",
-            "lastRun": datetime.now().isoformat(),
-            "stats": {
-                "postsToday": 12,
-                "repliesToday": 8,
-                "successRate": 94.5
-            },
-            "jobs": [
-                # Mock jobs - replace with actual job data from your bot_manager
-            ],
-            "timestamp": datetime.now().isoformat()
-        }
-        
-        return status
-        
-    except Exception as e:
-        logger.error(f"Error getting bot status: {e}")
-        return {
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-# 2. MISSING: Posting Job Creation
-@app.post("/api/bot-job/create-posting-job")
-async def create_posting_job(request: Dict[str, Any]):
-    """Create a new posting job"""
-    try:
-        settings = {
-            "type": "posting",
-            "name": request.get("name", "Untitled Posting Job"),
-            "postsPerDay": request.get("settings", {}).get("postsPerDay", 5),
-            "topics": request.get("settings", {}).get("topics", ["Pokemon TCG"]),
-            "postingTimeStart": request.get("settings", {}).get("postingTimeStart", "09:00"),
-            "postingTimeEnd": request.get("settings", {}).get("postingTimeEnd", "17:00"),
-            "contentTypes": request.get("settings", {}).get("contentTypes", {
-                "cardPulls": True,
-                "deckBuilding": True,
-                "marketAnalysis": True,
-                "tournaments": False
-            }),
-            "approvedPosts": request.get("settings", {}).get("approvedPosts", []),
-            "autoPost": request.get("settings", {}).get("autoPost", False)
-        }
-        
-        # Create job
-        job = {
-            "id": f"posting_job_{int(datetime.now().timestamp())}",
-            "type": "posting",
-            "name": settings["name"],
-            "settings": settings,
-            "status": "created",
-            "created_at": datetime.now().isoformat(),
-            "stats": {
-                "postsToday": 0,
-                "repliesToday": 0,
-                "successRate": 100.0
-            }
-        }
-        
-        logger.info(f"Created posting job: {job}")
-        return {
-            "success": True,
-            "job": job,
-            "message": "Posting job created successfully",
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error creating posting job: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# 3. MISSING: Job Control Endpoints
-@app.post("/api/bot-job/{job_id}/start")
-async def start_job(job_id: str):
-    """Start a specific job"""
-    try:
-        logger.info(f"Starting job {job_id}")
-        
-        return {
-            "success": True,
-            "job_id": job_id,
-            "message": "Job started successfully",
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error starting job {job_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/bot-job/{job_id}/stop")
-async def stop_job(job_id: str):
-    """Stop a specific job"""
-    try:
-        logger.info(f"Stopping job {job_id}")
-        
-        return {
-            "success": True,
-            "job_id": job_id,
-            "message": "Job stopped successfully",
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error stopping job {job_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/bot-job/{job_id}/pause")
-async def pause_job(job_id: str):
-    """Pause a specific job"""
-    try:
-        logger.info(f"Pausing job {job_id}")
-        
-        return {
-            "success": True,
-            "job_id": job_id,
-            "message": "Job paused successfully",
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error pausing job {job_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/bot-job/{job_id}/rename")
-async def rename_job(job_id: str, request: Dict[str, Any]):
-    """Rename a specific job"""
-    try:
-        new_name = request.get("name", "").strip()
-        if not new_name:
-            raise HTTPException(status_code=400, detail="Name cannot be empty")
-        
-        logger.info(f"Renaming job {job_id} to {new_name}")
-        
-        return {
-            "success": True,
-            "job_id": job_id,
-            "name": new_name,
-            "message": "Job renamed successfully",
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error renaming job {job_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# 4. MISSING: Content Generation
-@app.post("/api/generate-content")
-async def generate_content_endpoint(request: Dict[str, Any]):
-    """Generate content for posts"""
-    try:
-        topic = request.get("topic", "Pokemon TCG")
-        count = request.get("count", 1)
-        
-        logger.info(f"Generating {count} content piece(s) for topic: {topic}")
-        
-        # Mock content generation - replace with your actual content generation logic
-        mock_content = {
-            "content": f"Just pulled an amazing {topic} card from my latest pack! The artwork is absolutely stunning and the card quality is top-notch. Can't wait to add this to my collection! 🔥",
-            "engagement_score": 85.5,
-            "hashtags": ["#PokemonTCG", "#CardCollection", "#Pokemon"],
-            "mentions_tradeup": False if topic == "Pokemon TCG" else True
-        }
-        
-        return {
-            "success": True,
-            "content": mock_content,
-            "topic": topic,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error generating content: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-# 5. MISSING: Generic Job Creation (for backward compatibility)
-@app.post("/api/bot-job/create")
-async def create_bot_job_generic(request: Dict[str, Any]):
-    """Generic job creation endpoint - routes to specific job creators"""
-    try:
-        job_type = request.get("type", "posting")
-        
-        if job_type == "posting":
-            return await create_posting_job(request)
-        elif job_type == "replying":
-            return await create_reply_job(request)
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown job type: {job_type}")
-            
-    except Exception as e:
-        logger.error(f"Error in generic job creation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# 6. MISSING: Test Endpoint
-@app.get("/api/test")
-async def test_endpoint():
-    """Simple test endpoint"""
-    return {
-        "success": True,
-        "message": "API is working correctly",
-        "timestamp": datetime.now().isoformat(),
-        "endpoints_available": [
-            "/api/health",
-            "/api/bot-status", 
-            "/api/bot-job/create",
-            "/api/bot-job/create-posting-job",
-            "/api/bot-job/create-reply-job",
-            "/api/generate-content",
-            "/api/generate-reply",
-            "/api/post-reply"
-        ]
-    }
-
-# Your existing endpoints would go here...
-# (Make sure to include all your other endpoints from the original main.py)
 
 if __name__ == "__main__":
     import uvicorn
