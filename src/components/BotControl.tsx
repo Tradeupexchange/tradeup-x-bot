@@ -398,12 +398,12 @@ const BotControl: React.FC = () => {
             <button
               onClick={() => setShowScheduler(true)}
               disabled={actionLoading === 'create'}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200"
+              className="flex items-center justify-center space-x-2 px-8 py-3 bg-blue-600 text-white text-base font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200 min-w-[200px]"
             >
               {actionLoading === 'create' ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
+                <RefreshCw className="h-5 w-5 animate-spin" />
               ) : (
-                <Calendar className="h-4 w-4" />
+                <Calendar className="h-5 w-5" />
               )}
               <span>{actionLoading === 'create' ? 'Creating...' : 'New Job'}</span>
             </button>
