@@ -44,6 +44,7 @@ interface GeneratedContent {
   engagement_score?: number;
   hashtags?: string[];
   mentions_tradeup?: boolean;
+  tweetIndex?: number; // Track which tweet from the sheet this is
 }
 
 interface JobSettings {
@@ -232,31 +233,12 @@ const BotControl: React.FC = () => {
         });
 
       } else if (jobType === 'replying') {
-        // Step 1: Fetch tweets from Google Sheets and generate replies
-        console.log('📝 Generating replies for approval...');
+        // Step 1: Fetch tweets from Google Sheets and generate replies one by one
+        console.log('📝 Fetching tweets from Google Sheets and generating replies...');
         
-        const bulkReplyResult = await apiCall('/api/bulk-generate-replies', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            num_replies: jobSettings.maxRepliesPerHour || 5,
-            post_to_twitter: false,
-            require_confirmation: false
-          })
-        });
-
-        if (bulkReplyResult.success && bulkReplyResult.results) {
-          content = bulkReplyResult.results.map((result: any, index: number) => ({
-            id: `reply-${Date.now()}-${index}`,
-            content: result.reply_content,
-            type: 'reply' as const,
-            originalTweet: result.original_tweet,
-            tweetId: result.tweet_id,
-            tweetAuthor: result.username,
-            approved: null,
-            scheduledTime: `${9 + Math.floor(index / 2)}:${(index % 2) * 30}0`.padStart(5, '0')
-          }));
-        }
+        // Start by generating the first reply
+        await generateNextReply(0, jobSettings.maxRepliesPerHour || 5);
+        return; // Exit early - generateNextReply will handle setting the content
       }
 
       setGeneratedContent(content);
@@ -273,6 +255,77 @@ const BotControl: React.FC = () => {
     }
   };
 
+  // New function to generate replies one by one from Google Sheets
+  const generateNextReply = async (tweetIndex: number, maxReplies: number) => {
+    try {
+      setActionLoading('generate-content');
+      console.log(`📝 Generating reply for tweet #${tweetIndex + 1}...`);
+
+      // Fetch tweets from Google Sheets
+      const tweetsResult = await apiCall('/api/fetch-tweets', {
+        method: 'GET'
+      });
+
+      if (!tweetsResult.success || !tweetsResult.tweets || tweetsResult.tweets.length === 0) {
+        setApiError('No tweets found in Google Sheets to reply to.');
+        setActionLoading(null);
+        return;
+      }
+
+      // Get the specific tweet by index
+      if (tweetIndex >= tweetsResult.tweets.length) {
+        setApiError('No more tweets available in Google Sheets.');
+        setActionLoading(null);
+        return;
+      }
+
+      const tweet = tweetsResult.tweets[tweetIndex];
+      
+      // Generate reply for this specific tweet
+      const replyResult = await apiCall('/api/generate-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tweet_text: tweet.text,
+          tweet_author: tweet.author
+        })
+      });
+
+      if (replyResult.success && replyResult.reply) {
+        const newReply: GeneratedContent = {
+          id: `reply-${Date.now()}-${tweetIndex}`,
+          content: replyResult.reply,
+          type: 'reply',
+          originalTweet: tweet.text,
+          tweetId: tweet.id,
+          tweetAuthor: tweet.author,
+          approved: null,
+          scheduledTime: `${9 + Math.floor(tweetIndex / 2)}:${(tweetIndex % 2) * 30}0`.padStart(5, '0'),
+          tweetIndex: tweetIndex // Track which tweet this is for rejection handling
+        };
+
+        // Add this reply to the current content
+        setGeneratedContent(prev => [...prev, newReply]);
+        
+        // Set up the approval modal if this is the first reply
+        if (tweetIndex === 0) {
+          setCurrentJobSettings({ maxRepliesPerHour: maxReplies } as any);
+          setCurrentJobType('replying');
+          setShowScheduler(false);
+          setShowContentApproval(true);
+        }
+      } else {
+        setApiError('Failed to generate reply for the tweet.');
+      }
+
+    } catch (error) {
+      console.error('❌ Reply generation failed:', error);
+      setApiError(`Failed to generate reply: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const approveContent = (contentId: string) => {
     setGeneratedContent(prev => 
       prev.map(item => 
@@ -282,8 +335,22 @@ const BotControl: React.FC = () => {
   };
 
   const rejectContent = async (contentId: string) => {
-    // Automatically regenerate when rejecting
-    await regenerateContent(contentId);
+    const contentItem = generatedContent.find(c => c.id === contentId);
+    
+    if (contentItem?.type === 'reply') {
+      // For replies, remove the current one and fetch the next tweet
+      setGeneratedContent(prev => prev.filter(c => c.id !== contentId));
+      
+      // Get the next tweet index
+      const currentIndex = (contentItem as any).tweetIndex || 0;
+      const nextIndex = currentIndex + 1;
+      
+      // Generate reply for the next tweet
+      await generateNextReply(nextIndex, currentJobSettings?.maxRepliesPerHour || 5);
+    } else {
+      // For posts, regenerate the same content
+      await regenerateContent(contentId);
+    }
   };
 
   const regenerateContent = async (contentId: string) => {
@@ -320,6 +387,7 @@ const BotControl: React.FC = () => {
           );
         }
       } else if (contentItem.type === 'reply') {
+        // For replies, regenerate a new reply to the same tweet
         const replyResult = await apiCall('/api/generate-reply', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
