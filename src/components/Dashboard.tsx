@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import RecentPosts from './RecentPosts';
-import PostingTrends from './PostingTrends';
 import BotControl from './BotControl';
 import ConnectionTest from './ConnectionTest';
 import TestButtons from './TestButtons';
@@ -38,21 +37,16 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Top row: Connection/Content Testing (left) and Posting Trends (right) */}
+      {/* Top row: Connection Test and Test Buttons side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left side: Connection Test and Content Testing stacked with equal heights */}
-        <div className="grid grid-rows-2 gap-6">
-          <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
-            <ConnectionTest />
-          </div>
-          <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
-            <TestButtons />
-          </div>
+        {/* Connection Test */}
+        <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
+          <ConnectionTest />
         </div>
         
-        {/* Right side: Posting Trends with 4 metric squares */}
+        {/* Test Buttons */}
         <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
-          <PostingTrends />
+          <TestButtons />
         </div>
       </div>
       
