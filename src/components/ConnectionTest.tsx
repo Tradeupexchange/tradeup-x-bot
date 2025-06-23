@@ -246,8 +246,8 @@ const ConnectionTest: React.FC = () => {
         )}
       </div>
 
-      {/* Test button centered at bottom - matching Generate Content button size */}
-      <div className="flex justify-center mt-6">
+      {/* Test button centered at bottom - matching Generate Content button size and position */}
+      <div className="flex justify-center mt-4">
         <button
           onClick={handleManualTest}
           disabled={status === 'testing'}
