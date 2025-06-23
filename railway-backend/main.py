@@ -1,7 +1,49 @@
 # Add these imports at the top with your other imports
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
+from datetime import datetime, timedelta
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Create FastAPI app
+app = FastAPI(title="Pokemon TCG Bot API", description="API for Pokemon TCG engagement bot")
+
+# ===== CORS CONFIGURATION - THIS FIXES YOUR "Failed to fetch" ERROR =====
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://tradeup-bot-engagement-dashboard.netlify.app",
+        "http://localhost:3000",  # For local development
+        "http://localhost:5173",  # For Vite dev server
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+# Add preflight handler for OPTIONS requests
+@app.options("/{rest_of_path:path}")
+async def preflight_handler(rest_of_path: str):
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "https://tradeup-bot-engagement-dashboard.netlify.app",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
+# Import reply modules with error handling
 try:
     from src.reply_generator import generate_reply
-    from src.twitter_poster import post_reply_tweet
+    from src.twitter_poster import post_reply_tweet, generate_and_post_replies
     logger.info("Successfully imported reply generation modules")
 except ImportError as e:
     logger.warning(f"Could not import reply modules: {e}")
@@ -10,6 +52,8 @@ except ImportError as e:
         return {"content": f"Thanks for sharing! Great point about Pokemon TCG.", "success": True}
     def post_reply_tweet(content, reply_to_id):
         return {"success": False, "error": "Reply integration not available"}
+    def generate_and_post_replies(num_replies=5, post_to_twitter=False, require_confirmation=False):
+        return []
 
 # Add these new Pydantic models after your existing ones
 class GenerateReplyRequest(BaseModel):
@@ -33,6 +77,30 @@ class TweetData(BaseModel):
     created_at: str
     public_metrics: Optional[Dict[str, int]] = None
     conversation_id: Optional[str] = None
+
+class BulkReplyRequest(BaseModel):
+    num_replies: int = 5
+    post_to_twitter: bool = False
+    require_confirmation: bool = False
+
+# Health check endpoint
+@app.get("/")
+async def root():
+    return {
+        "message": "Pokemon TCG Bot API is running",
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "cors": "enabled"
+    }
+
+@app.get("/api/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "message": "Backend is running",
+        "timestamp": datetime.now().isoformat(),
+        "cors": "enabled"
+    }
 
 # Add these new endpoints after your existing endpoints
 
@@ -248,13 +316,66 @@ async def generate_and_post_reply(request: Dict[str, Any]):
             "timestamp": datetime.now().isoformat()
         }
 
+@app.post("/api/bulk-generate-replies")
+async def bulk_generate_replies(request: BulkReplyRequest):
+    """Generate replies to multiple tweets from Google Sheets"""
+    try:
+        logger.info(f"Starting bulk reply generation: {request.num_replies} replies, post_to_twitter={request.post_to_twitter}")
+        
+        # Use the integrated function from twitter_poster
+        results = generate_and_post_replies(
+            num_replies=request.num_replies,
+            post_to_twitter=request.post_to_twitter,
+            require_confirmation=request.require_confirmation
+        )
+        
+        # Process results for API response
+        processed_results = []
+        successful_posts = 0
+        
+        for result in results:
+            processed_result = {
+                "original_tweet": result.get("original_tweet", ""),
+                "username": result.get("username", ""),
+                "tweet_id": result.get("tweet_id", ""),
+                "tweet_url": result.get("tweet_url", ""),
+                "reply_content": result.get("reply_content", ""),
+                "posted": result.get("posted", False),
+                "post_error": result.get("post_error", None),
+                "reply_id": result.get("reply_id", None),
+                "reply_url": result.get("reply_url", None)
+            }
+            processed_results.append(processed_result)
+            
+            if processed_result["posted"]:
+                successful_posts += 1
+        
+        return {
+            "success": True,
+            "total_processed": len(processed_results),
+            "successful_posts": successful_posts,
+            "results": processed_results,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in bulk reply generation: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "total_processed": 0,
+            "successful_posts": 0,
+            "results": [],
+            "timestamp": datetime.now().isoformat()
+        }
+
 # Enhanced bot status to include reply metrics
 @app.get("/api/bot-status-with-replies")
 async def get_bot_status_with_replies():
     """Get bot status including reply metrics"""
     try:
-        # Get base status
-        base_status = await get_bot_status()
+        # Get base status (you'll need to implement this based on your existing code)
+        base_status = await get_bot_status() if 'get_bot_status' in globals() else {"status": "running"}
         
         # Add reply-specific metrics
         reply_metrics = {
@@ -295,7 +416,17 @@ async def create_reply_job(request: Dict[str, Any]):
             "sentiment_filter": request.get("sentiment_filter", "positive"),  # Only reply to positive/neutral tweets
         }
         
-        job = bot_manager.create_job("replying", settings)
+        # If you have a bot_manager, use it, otherwise create a simple job response
+        if 'bot_manager' in globals():
+            job = bot_manager.create_job("replying", settings)
+        else:
+            job = {
+                "id": f"reply_job_{int(datetime.now().timestamp())}",
+                "type": "replying",
+                "settings": settings,
+                "status": "created",
+                "created_at": datetime.now().isoformat()
+            }
         
         logger.info(f"Created reply job: {job}")
         return {
@@ -318,9 +449,14 @@ async def test_reply_system():
         test_tweet = "Just pulled a Charizard card from my Pokemon TCG pack! So excited!"
         test_reply = generate_reply(test_tweet, "TestUser")
         
-        # Test Twitter API connection
-        client = get_twitter_client()
-        twitter_connected = client is not None
+        # Test Twitter API connection (you'll need to implement get_twitter_client)
+        twitter_connected = False
+        try:
+            if 'get_twitter_client' in globals():
+                client = get_twitter_client()
+                twitter_connected = client is not None
+        except:
+            pass
         
         return {
             "success": True,
@@ -336,6 +472,7 @@ async def test_reply_system():
                 "reply_generator": "generate_reply" in globals(),
                 "twitter_poster": "post_reply_tweet" in globals()
             },
+            "cors_enabled": True,
             "timestamp": datetime.now().isoformat()
         }
         
@@ -344,5 +481,13 @@ async def test_reply_system():
         return {
             "success": False,
             "error": str(e),
+            "cors_enabled": True,
             "timestamp": datetime.now().isoformat()
         }
+
+# Your existing endpoints would go here...
+# (Make sure to include all your other endpoints from the original main.py)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
