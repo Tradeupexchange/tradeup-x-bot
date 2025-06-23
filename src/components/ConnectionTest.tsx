@@ -156,23 +156,16 @@ const ConnectionTest: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center space-x-2">
-          <Globe className="h-5 w-5 text-blue-600" />
-          <h3 className="text-lg font-semibold text-gray-900">Railway Backend Connection</h3>
-        </div>
-        <button
-          onClick={handleManualTest}
-          disabled={status === 'testing'}
-          className="flex items-center space-x-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${status === 'testing' ? 'animate-spin' : ''}`} />
-          <span>{manualTest ? 'Testing...' : 'Test Now'}</span>
-        </button>
+    <div className="bg-white rounded-xl p-6 shadow-sm h-full flex flex-col">
+      {/* Header with icon and title */}
+      <div className="flex items-center space-x-2 mb-4">
+        <Globe className="h-5 w-5 text-blue-600" />
+        <h3 className="text-lg font-semibold text-gray-900">Railway Backend Connection</h3>
       </div>
 
-      <div className="space-y-3">
+      {/* Content area that grows to push button to bottom */}
+      <div className="flex-1 space-y-3">
+        {/* Server Status */}
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-600">Server Status:</span>
           <div 
@@ -202,6 +195,7 @@ const ConnectionTest: React.FC = () => {
           </div>
         </div>
 
+        {/* Status indicators */}
         <div className="flex items-center space-x-2">
           {status === 'testing' && (
             <>
@@ -250,6 +244,18 @@ const ConnectionTest: React.FC = () => {
             </p>
           </div>
         )}
+      </div>
+
+      {/* Test button centered at bottom */}
+      <div className="flex justify-center mt-6">
+        <button
+          onClick={handleManualTest}
+          disabled={status === 'testing'}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200"
+        >
+          <RefreshCw className={`h-4 w-4 ${status === 'testing' ? 'animate-spin' : ''}`} />
+          <span>{manualTest ? 'Testing...' : 'Test Connection'}</span>
+        </button>
       </div>
     </div>
   );
