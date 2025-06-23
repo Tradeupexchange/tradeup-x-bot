@@ -31,10 +31,14 @@ interface BotStatus {
   timestamp: string;
 }
 
-interface GeneratedPost {
+interface GeneratedContent {
   id: string;
   content: string;
-  topic: string;
+  type: 'post' | 'reply';
+  topic?: string;
+  originalTweet?: string;
+  tweetId?: string;
+  tweetAuthor?: string;
   approved: boolean | null; // null = pending, true = approved, false = rejected
   scheduledTime?: string;
   engagement_score?: number;
@@ -43,39 +47,51 @@ interface GeneratedPost {
 }
 
 interface JobSettings {
-  postsPerDay: number;
-  topics: string[];
-  postingTimeStart: string;
-  postingTimeEnd: string;
-  contentTypes: {
+  postsPerDay?: number;
+  topics?: string[];
+  postingTimeStart?: string;
+  postingTimeEnd?: string;
+  contentTypes?: {
     cardPulls: boolean;
     deckBuilding: boolean;
     marketAnalysis: boolean;
     tournaments: boolean;
   };
+  // Reply settings
+  keywords?: string[];
+  maxRepliesPerHour?: number;
+  replyTypes?: {
+    helpful: boolean;
+    engaging: boolean;
+    promotional: boolean;
+  };
 }
 
 const BotControl: React.FC = () => {
-  // Use the centralized useApi hook - it automatically handles 20-minute intervals!
+  // Use the centralized useApi hook
   const { data: status, loading, error, lastFetch, refetch } = useApi<BotStatus>('/api/bot-status');
   
   const [jobs, setJobs] = useState<BotJob[]>([]);
   const [jobCounter, setJobCounter] = useState(1);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showScheduler, setShowScheduler] = useState(false);
-  const [showPostApproval, setShowPostApproval] = useState(false);
-  const [generatedPosts, setGeneratedPosts] = useState<GeneratedPost[]>([]);
+  const [showContentApproval, setShowContentApproval] = useState(false);
+  const [generatedContent, setGeneratedContent] = useState<GeneratedContent[]>([]);
   const [currentJobSettings, setCurrentJobSettings] = useState<JobSettings | null>(null);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [editingJobName, setEditingJobName] = useState('');
   const [apiError, setApiError] = useState<string | null>(null);
+  const [currentJobType, setCurrentJobType] = useState<'posting' | 'replying'>('posting');
 
-  // Update jobs when status changes
+  // Update jobs when status changes (filter out demo jobs)
   useEffect(() => {
     if (status?.jobs && Array.isArray(status.jobs)) {
-      setJobs(status.jobs);
+      // Filter out demo jobs
+      const realJobs = status.jobs.filter(job => !job.id.includes('demo'));
+      setJobs(realJobs);
+      
       // Update job counter based on existing jobs
-      const maxJobNumber = status.jobs.reduce((max, job) => {
+      const maxJobNumber = realJobs.reduce((max, job) => {
         const jobNamePattern = /^Job #(\d+)$/;
         const match = job.name?.match(jobNamePattern);
         if (match) {
@@ -84,7 +100,7 @@ const BotControl: React.FC = () => {
         return max;
       }, 0);
       setJobCounter(maxJobNumber + 1);
-      console.log('Updated jobs from API:', status.jobs);
+      console.log('Updated jobs from API:', realJobs);
     }
   }, [status]);
 
@@ -159,11 +175,11 @@ const BotControl: React.FC = () => {
     return times;
   };
 
-  const createJobWithApproval = async (jobSettings: JobSettings, jobName: string) => {
+  const createJobWithApproval = async (jobSettings: JobSettings, jobName: string, jobType: 'posting' | 'replying') => {
     try {
-      setActionLoading('generate-posts');
+      setActionLoading('generate-content');
       setApiError(null);
-      console.log('🧪 Creating job with approval workflow...');
+      console.log(`🧪 Creating ${jobType} job with approval workflow...`);
 
       // Use provided name or generate automatic name
       const finalJobName = jobName.trim() || `Job #${jobCounter}`;
@@ -171,151 +187,212 @@ const BotControl: React.FC = () => {
         setJobCounter(prev => prev + 1);
       }
 
-      // Step 1: Generate posts for approval
-      console.log('📝 Generating posts for approval...');
-      const posts: GeneratedPost[] = [];
-      
-      for (let i = 0; i < jobSettings.postsPerDay; i++) {
-        const randomTopic = jobSettings.topics[Math.floor(Math.random() * jobSettings.topics.length)];
+      let content: GeneratedContent[] = [];
+
+      if (jobType === 'posting') {
+        // Step 1: Generate posts for approval
+        console.log('📝 Generating posts for approval...');
         
+        for (let i = 0; i < (jobSettings.postsPerDay || 5); i++) {
+          const randomTopic = jobSettings.topics?.[Math.floor(Math.random() * jobSettings.topics.length)] || 'Pokemon TCG';
+          
+          const contentResult = await apiCall('/api/generate-content', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              topic: randomTopic,
+              count: 1
+            })
+          });
+
+          if (contentResult.success && contentResult.content) {
+            content.push({
+              id: `post-${Date.now()}-${i}`,
+              content: contentResult.content.content || contentResult.content,
+              type: 'post',
+              topic: randomTopic,
+              approved: null,
+              engagement_score: contentResult.content.engagement_score,
+              hashtags: contentResult.content.hashtags,
+              mentions_tradeup: contentResult.content.mentions_tradeup
+            });
+          }
+        }
+
+        // Generate scheduled times for posts
+        const scheduledTimes = generateScheduledTimes(
+          jobSettings.postsPerDay || 5,
+          jobSettings.postingTimeStart || '09:00',
+          jobSettings.postingTimeEnd || '17:00'
+        );
+
+        // Assign scheduled times to posts
+        content.forEach((item, index) => {
+          item.scheduledTime = scheduledTimes[index];
+        });
+
+      } else if (jobType === 'replying') {
+        // Step 1: Fetch tweets from Google Sheets and generate replies
+        console.log('📝 Generating replies for approval...');
+        
+        const bulkReplyResult = await apiCall('/api/bulk-generate-replies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            num_replies: jobSettings.maxRepliesPerHour || 5,
+            post_to_twitter: false,
+            require_confirmation: false
+          })
+        });
+
+        if (bulkReplyResult.success && bulkReplyResult.results) {
+          content = bulkReplyResult.results.map((result: any, index: number) => ({
+            id: `reply-${Date.now()}-${index}`,
+            content: result.reply_content,
+            type: 'reply' as const,
+            originalTweet: result.original_tweet,
+            tweetId: result.tweet_id,
+            tweetAuthor: result.username,
+            approved: null,
+            scheduledTime: `${9 + Math.floor(index / 2)}:${(index % 2) * 30}0`.padStart(5, '0')
+          }));
+        }
+      }
+
+      setGeneratedContent(content);
+      setCurrentJobSettings({ ...jobSettings, name: finalJobName } as any);
+      setCurrentJobType(jobType);
+      setShowScheduler(false);
+      setShowContentApproval(true);
+
+    } catch (error) {
+      console.error('❌ Content generation failed:', error);
+      setApiError(`Failed to generate content: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const approveContent = (contentId: string) => {
+    setGeneratedContent(prev => 
+      prev.map(item => 
+        item.id === contentId ? { ...item, approved: true } : item
+      )
+    );
+  };
+
+  const rejectContent = async (contentId: string) => {
+    // Automatically regenerate when rejecting
+    await regenerateContent(contentId);
+  };
+
+  const regenerateContent = async (contentId: string) => {
+    try {
+      setActionLoading(`regenerate-${contentId}`);
+      setApiError(null);
+      const contentItem = generatedContent.find(c => c.id === contentId);
+      if (!contentItem) return;
+
+      if (contentItem.type === 'post') {
         const contentResult = await apiCall('/api/generate-content', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            topic: randomTopic,
+            topic: contentItem.topic,
             count: 1
           })
         });
 
         if (contentResult.success && contentResult.content) {
-          posts.push({
-            id: `post-${Date.now()}-${i}`,
-            content: contentResult.content.content || contentResult.content,
-            topic: randomTopic,
-            approved: null,
-            engagement_score: contentResult.content.engagement_score,
-            hashtags: contentResult.content.hashtags,
-            mentions_tradeup: contentResult.content.mentions_tradeup
-          });
+          setGeneratedContent(prev => 
+            prev.map(c => 
+              c.id === contentId 
+                ? {
+                    ...c,
+                    content: contentResult.content.content || contentResult.content,
+                    approved: null,
+                    engagement_score: contentResult.content.engagement_score,
+                    hashtags: contentResult.content.hashtags,
+                    mentions_tradeup: contentResult.content.mentions_tradeup
+                  }
+                : c
+            )
+          );
+        }
+      } else if (contentItem.type === 'reply') {
+        const replyResult = await apiCall('/api/generate-reply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tweet_text: contentItem.originalTweet,
+            tweet_author: contentItem.tweetAuthor
+          })
+        });
+
+        if (replyResult.success && replyResult.reply) {
+          setGeneratedContent(prev => 
+            prev.map(c => 
+              c.id === contentId 
+                ? {
+                    ...c,
+                    content: replyResult.reply,
+                    approved: null
+                  }
+                : c
+            )
+          );
         }
       }
-
-      // Generate scheduled times
-      const scheduledTimes = generateScheduledTimes(
-        jobSettings.postsPerDay,
-        jobSettings.postingTimeStart,
-        jobSettings.postingTimeEnd
-      );
-
-      // Assign scheduled times to posts
-      posts.forEach((post, index) => {
-        post.scheduledTime = scheduledTimes[index];
-      });
-
-      setGeneratedPosts(posts);
-      setCurrentJobSettings({ ...jobSettings, name: finalJobName } as any);
-      setShowScheduler(false);
-      setShowPostApproval(true);
-
     } catch (error) {
-      console.error('❌ Post generation failed:', error);
-      setApiError(`Failed to generate posts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('❌ Content regeneration failed:', error);
+      setApiError(`Failed to regenerate content: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setActionLoading(null);
     }
   };
 
-  const approvePost = (postId: string) => {
-    setGeneratedPosts(prev => 
-      prev.map(post => 
-        post.id === postId ? { ...post, approved: true } : post
-      )
-    );
-  };
-
-  const rejectPost = async (postId: string) => {
-    // Automatically regenerate when rejecting
-    await regeneratePost(postId);
-  };
-
-  const regeneratePost = async (postId: string) => {
-    try {
-      setActionLoading(`regenerate-${postId}`);
-      setApiError(null);
-      const post = generatedPosts.find(p => p.id === postId);
-      if (!post) return;
-
-      const contentResult = await apiCall('/api/generate-content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic: post.topic,
-          count: 1
-        })
-      });
-
-      if (contentResult.success && contentResult.content) {
-        setGeneratedPosts(prev => 
-          prev.map(p => 
-            p.id === postId 
-              ? {
-                  ...p,
-                  content: contentResult.content.content || contentResult.content,
-                  approved: null,
-                  engagement_score: contentResult.content.engagement_score,
-                  hashtags: contentResult.content.hashtags,
-                  mentions_tradeup: contentResult.content.mentions_tradeup
-                }
-              : p
-          )
-        );
-      }
-    } catch (error) {
-      console.error('❌ Post regeneration failed:', error);
-      setApiError(`Failed to regenerate post: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const scheduleApprovedPosts = async () => {
+  const scheduleApprovedContent = async () => {
     try {
       setActionLoading('schedule');
       setApiError(null);
-      const approvedPosts = generatedPosts.filter(post => post.approved === true);
+      const approvedItems = generatedContent.filter(item => item.approved === true);
       
-      if (approvedPosts.length === 0) {
-        setApiError('Please approve at least one post before scheduling.');
+      if (approvedItems.length === 0) {
+        setApiError('Please approve at least one item before scheduling.');
         return;
       }
 
-      console.log('📅 Scheduling approved posts...', approvedPosts);
+      console.log(`📅 Scheduling approved ${currentJobType}...`, approvedItems);
 
-      // Create the actual job with approved posts - FIXED ENDPOINT
-      const result = await apiCall('/api/bot-job/create-posting-job', {
+      // Create the actual job with approved content
+      const endpoint = currentJobType === 'posting' 
+        ? '/api/bot-job/create-posting-job'
+        : '/api/bot-job/create-reply-job';
+
+      const result = await apiCall(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'posting',
+          type: currentJobType,
           name: (currentJobSettings as any)?.name || 'Untitled Job',
           settings: {
             ...currentJobSettings,
-            approvedPosts: approvedPosts,
+            approvedContent: approvedItems,
             autoPost: true
           }
         })
       });
 
       if (result.success) {
-        alert(`Successfully scheduled ${approvedPosts.length} posts!`);
-        setShowPostApproval(false);
-        setGeneratedPosts([]);
+        alert(`Successfully scheduled ${approvedItems.length} ${currentJobType === 'posting' ? 'posts' : 'replies'}!`);
+        setShowContentApproval(false);
+        setGeneratedContent([]);
         refetch(); // Refresh the jobs list
       }
 
     } catch (error) {
       console.error('❌ Scheduling failed:', error);
-      setApiError(`Failed to schedule posts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setApiError(`Failed to schedule content: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setActionLoading(null);
     }
@@ -334,7 +411,7 @@ const BotControl: React.FC = () => {
       
       console.log('Creating new job:', { type, settings, name: finalJobName });
       
-      // FIXED: Use the correct endpoint based on job type
+      // Use the correct endpoint based on job type
       const endpoint = type === 'posting' 
         ? '/api/bot-job/create-posting-job'
         : '/api/bot-job/create-reply-job';
@@ -378,27 +455,6 @@ const BotControl: React.FC = () => {
     }
   };
 
-  const testConnection = async () => {
-    try {
-      setActionLoading('test-connection');
-      setApiError(null);
-      console.log('🔧 Testing API connection...');
-      
-      const result = await apiCall('/api/health', {
-        method: 'GET'
-      });
-      
-      console.log('✅ Connection test result:', result);
-      alert('Connection successful! Backend is responding.');
-      
-    } catch (error) {
-      console.error('❌ Connection test failed:', error);
-      setApiError(`Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
   if (loading && !status) {
     return (
       <div className="bg-white rounded-xl p-6 shadow-sm">
@@ -435,10 +491,10 @@ const BotControl: React.FC = () => {
             </div>
             <div>
               <h3 className="text-xl font-semibold text-gray-900">
-                Automated Posting
+                Automated Engagement
               </h3>
               <p className="text-sm text-gray-600">
-                Generate, approve, and schedule posts
+                Generate, approve, and schedule posts and replies
               </p>
             </div>
           </div>
@@ -457,26 +513,13 @@ const BotControl: React.FC = () => {
               <span>{actionLoading === 'create' ? 'Creating...' : 'New Job'}</span>
             </button>
 
-            <button
-              onClick={testConnection}
-              disabled={actionLoading === 'test-connection'}
-              className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors duration-200"
-            >
-              {actionLoading === 'test-connection' ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <Settings className="h-4 w-4" />
-              )}
-              <span>Test API</span>
-            </button>
-
-            {generatedPosts.length > 0 && (
+            {generatedContent.length > 0 && (
               <button
-                onClick={() => setShowPostApproval(true)}
+                onClick={() => setShowContentApproval(true)}
                 className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-200"
               >
                 <Eye className="h-4 w-4" />
-                <span>Review Posts ({generatedPosts.filter(p => p.approved === null).length})</span>
+                <span>Review Content ({generatedContent.filter(c => c.approved === null).length})</span>
               </button>
             )}
 
@@ -539,21 +582,22 @@ const BotControl: React.FC = () => {
             onClose={() => setShowScheduler(false)}
             onCreateJob={createNewJob}
             onCreateJobWithApproval={createJobWithApproval}
-            loading={actionLoading === 'create' || actionLoading === 'generate-posts'}
+            loading={actionLoading === 'create' || actionLoading === 'generate-content'}
           />
         </div>
       )}
 
-      {/* Post Approval Modal */}
-      {showPostApproval && (
+      {/* Content Approval Modal */}
+      {showContentApproval && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
-          <PostApprovalModal
-            posts={generatedPosts}
-            onApprove={approvePost}
-            onReject={rejectPost}
-            onRegenerate={regeneratePost}
-            onSchedule={scheduleApprovedPosts}
-            onClose={() => setShowPostApproval(false)}
+          <ContentApprovalModal
+            content={generatedContent}
+            contentType={currentJobType}
+            onApprove={approveContent}
+            onReject={rejectContent}
+            onRegenerate={regenerateContent}
+            onSchedule={scheduleApprovedContent}
+            onClose={() => setShowContentApproval(false)}
             loading={actionLoading}
           />
         </div>
@@ -562,11 +606,11 @@ const BotControl: React.FC = () => {
   );
 };
 
-// Enhanced Job Scheduler with post approval option
+// Enhanced Job Scheduler with unified workflow
 interface EnhancedJobSchedulerProps {
   onClose: () => void;
   onCreateJob: (type: 'posting' | 'replying', settings: any, jobName: string) => void;
-  onCreateJobWithApproval: (settings: JobSettings, jobName: string) => void;
+  onCreateJobWithApproval: (settings: JobSettings, jobName: string, jobType: 'posting' | 'replying') => void;
   loading: boolean;
 }
 
@@ -625,16 +669,20 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
     e.preventDefault();
     
     try {
-      if (jobType === 'posting' && useApprovalWorkflow) {
-        // Use the enhanced workflow with post approval
-        const jobSettings: JobSettings = {
+      if (useApprovalWorkflow) {
+        // Use the enhanced workflow with content approval for both posting and replying
+        const jobSettings: JobSettings = jobType === 'posting' ? {
           postsPerDay: settings.postsPerDay,
           topics: settings.topics,
           postingTimeStart: settings.postingTimeStart,
           postingTimeEnd: settings.postingTimeEnd,
           contentTypes: settings.contentTypes
+        } : {
+          keywords: settings.keywords,
+          maxRepliesPerHour: settings.maxRepliesPerHour,
+          replyTypes: settings.replyTypes
         };
-        onCreateJobWithApproval(jobSettings, jobName);
+        onCreateJobWithApproval(jobSettings, jobName, jobType);
       } else {
         // Use the original workflow
         onCreateJob(jobType, settings, jobName);
@@ -710,27 +758,25 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
           </div>
         </div>
 
-        {/* Approval Workflow Toggle (only for posting) */}
-        {jobType === 'posting' && (
-          <div className="bg-blue-50 rounded-lg p-4">
-            <label className="flex items-center space-x-3">
-              <input
-                type="checkbox"
-                checked={useApprovalWorkflow}
-                onChange={(e) => setUseApprovalWorkflow(e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <div>
-                <span className="text-sm font-medium text-blue-900">
-                  Use Post Approval Workflow
-                </span>
-                <p className="text-xs text-blue-700">
-                  Generate posts for review before scheduling (Recommended)
-                </p>
-              </div>
-            </label>
-          </div>
-        )}
+        {/* Approval Workflow Toggle */}
+        <div className="bg-blue-50 rounded-lg p-4">
+          <label className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              checked={useApprovalWorkflow}
+              onChange={(e) => setUseApprovalWorkflow(e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <div>
+              <span className="text-sm font-medium text-blue-900">
+                Use Content Approval Workflow
+              </span>
+              <p className="text-xs text-blue-700">
+                Generate content for review before scheduling (Recommended)
+              </p>
+            </div>
+          </label>
+        </div>
 
         {/* Job-specific settings */}
         {jobType === 'posting' ? (
@@ -755,14 +801,14 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
           >
             {loading ? (
               <RefreshCw className="h-4 w-4 animate-spin" />
-            ) : useApprovalWorkflow && jobType === 'posting' ? (
+            ) : useApprovalWorkflow ? (
               <Eye className="h-4 w-4" />
             ) : (
               <Play className="h-4 w-4" />
             )}
             <span>
               {loading ? 'Processing...' : 
-               useApprovalWorkflow && jobType === 'posting' ? 'Generate for Approval' : 'Start Job'
+               useApprovalWorkflow ? 'Generate for Approval' : 'Start Job'
               }
             </span>
           </button>
@@ -916,19 +962,21 @@ const EnhancedPostingSettings: React.FC<{
   );
 };
 
-// Post Approval Modal Component
-interface PostApprovalModalProps {
-  posts: GeneratedPost[];
-  onApprove: (postId: string) => void;
-  onReject: (postId: string) => void;
-  onRegenerate: (postId: string) => void;
+// Unified Content Approval Modal for both posts and replies
+interface ContentApprovalModalProps {
+  content: GeneratedContent[];
+  contentType: 'posting' | 'replying';
+  onApprove: (contentId: string) => void;
+  onReject: (contentId: string) => void;
+  onRegenerate: (contentId: string) => void;
   onSchedule: () => void;
   onClose: () => void;
   loading: string | null;
 }
 
-const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
-  posts,
+const ContentApprovalModal: React.FC<ContentApprovalModalProps> = ({
+  content,
+  contentType,
   onApprove,
   onReject,
   onRegenerate,
@@ -936,15 +984,17 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
   onClose,
   loading
 }) => {
-  const approvedCount = posts.filter(p => p.approved === true).length;
-  const rejectedCount = posts.filter(p => p.approved === false).length;
-  const pendingCount = posts.filter(p => p.approved === null).length;
+  const approvedCount = content.filter(c => c.approved === true).length;
+  const rejectedCount = content.filter(c => c.approved === false).length;
+  const pendingCount = content.filter(c => c.approved === null).length;
+
+  const contentTypeLabel = contentType === 'posting' ? 'Posts' : 'Replies';
 
   return (
     <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between">
-          <h3 className="text-xl font-semibold text-gray-900">Review & Approve Posts</h3>
+          <h3 className="text-xl font-semibold text-gray-900">Review & Approve {contentTypeLabel}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="h-5 w-5" />
           </button>
@@ -953,7 +1003,7 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
         {/* Stats bar */}
         <div className="mt-4 grid grid-cols-4 gap-4 text-sm">
           <div className="bg-blue-50 rounded-lg p-3 text-center">
-            <div className="font-semibold text-blue-900">{posts.length}</div>
+            <div className="font-semibold text-blue-900">{content.length}</div>
             <div className="text-blue-700">Total</div>
           </div>
           <div className="bg-green-50 rounded-lg p-3 text-center">
@@ -971,44 +1021,66 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
         </div>
       </div>
 
-      {/* Posts list */}
+      {/* Content list */}
       <div className="p-6 space-y-4 max-h-96 overflow-y-auto">
-        {posts.map((post) => (
+        {content.map((item) => (
           <div
-            key={post.id}
+            key={item.id}
             className={`p-4 border-2 rounded-lg transition-all duration-200 ${
-              post.approved === true
+              item.approved === true
                 ? 'border-green-200 bg-green-50'
-                : post.approved === false
+                : item.approved === false
                 ? 'border-red-200 bg-red-50'
                 : 'border-gray-200 bg-white hover:border-gray-300'
             }`}
           >
             <div className="flex items-start justify-between">
               <div className="flex-1 mr-4">
-                {/* Post metadata */}
+                {/* Content metadata */}
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                    {post.topic}
-                  </span>
-                  <span className="text-xs text-gray-500 flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {post.scheduledTime}
-                  </span>
-                  {post.mentions_tradeup && (
-                    <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
-                      TradeUp Mention
-                    </span>
+                  {item.type === 'post' ? (
+                    <>
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                        {item.topic}
+                      </span>
+                      <span className="text-xs text-gray-500 flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {item.scheduledTime}
+                      </span>
+                      {item.mentions_tradeup && (
+                        <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
+                          TradeUp Mention
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                        Reply to @{item.tweetAuthor}
+                      </span>
+                      <span className="text-xs text-gray-500 flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {item.scheduledTime}
+                      </span>
+                    </>
                   )}
                 </div>
 
-                {/* Post content */}
-                <p className="text-gray-900 mb-3 leading-relaxed">{post.content}</p>
+                {/* Original tweet for replies */}
+                {item.type === 'reply' && item.originalTweet && (
+                  <div className="mb-3 p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Original tweet:</p>
+                    <p className="text-sm text-gray-800">{item.originalTweet}</p>
+                  </div>
+                )}
 
-                {/* Hashtags */}
-                {post.hashtags && post.hashtags.length > 0 && (
+                {/* Content */}
+                <p className="text-gray-900 mb-3 leading-relaxed">{item.content}</p>
+
+                {/* Hashtags for posts */}
+                {item.type === 'post' && item.hashtags && item.hashtags.length > 0 && (
                   <div className="flex gap-1 flex-wrap">
-                    {post.hashtags.map((tag, i) => (
+                    {item.hashtags.map((tag, i) => (
                       <span key={i} className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
                         {tag}
                       </span>
@@ -1020,25 +1092,25 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
               {/* Action buttons */}
               <div className="flex gap-2 flex-shrink-0">
                 <button
-                  onClick={() => onApprove(post.id)}
-                  disabled={post.approved === true}
+                  onClick={() => onApprove(item.id)}
+                  disabled={item.approved === true}
                   className={`p-2 rounded-lg transition-all duration-200 ${
-                    post.approved === true
+                    item.approved === true
                       ? 'bg-green-600 text-white cursor-default'
                       : 'bg-green-100 text-green-800 hover:bg-green-200 hover:scale-105'
                   }`}
-                  title="Approve post"
+                  title={`Approve ${item.type}`}
                 >
                   <Check className="h-4 w-4" />
                 </button>
                 
                 <button
-                  onClick={() => onReject(post.id)}
-                  disabled={loading === `regenerate-${post.id}`}
+                  onClick={() => onReject(item.id)}
+                  disabled={loading === `regenerate-${item.id}`}
                   className="p-2 rounded-lg bg-red-100 text-red-800 hover:bg-red-200 hover:scale-105 transition-all duration-200 disabled:opacity-50"
-                  title="Reject and regenerate post"
+                  title={`Reject and regenerate ${item.type}`}
                 >
-                  {loading === `regenerate-${post.id}` ? (
+                  {loading === `regenerate-${item.id}` ? (
                     <RefreshCw className="h-4 w-4 animate-spin" />
                   ) : (
                     <X className="h-4 w-4" />
@@ -1048,16 +1120,16 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
             </div>
 
             {/* Approval status indicator */}
-            {post.approved !== null && (
+            {item.approved !== null && (
               <div className={`mt-3 pt-3 border-t ${
-                post.approved ? 'border-green-200' : 'border-red-200'
+                item.approved ? 'border-green-200' : 'border-red-200'
               }`}>
                 <span className={`text-xs font-medium ${
-                  post.approved ? 'text-green-800' : 'text-red-800'
+                  item.approved ? 'text-green-800' : 'text-red-800'
                 }`}>
-                  {post.approved 
+                  {item.approved 
                     ? '✓ Approved for scheduling' 
-                    : loading === `regenerate-${post.id}`
+                    : loading === `regenerate-${item.id}`
                     ? '🔄 Regenerating content...'
                     : '✗ Regenerating new version...'
                   }
@@ -1082,7 +1154,7 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
               <Calendar className="h-4 w-4" />
             )}
             <span>
-              {loading === 'schedule' ? 'Scheduling...' : `Schedule ${approvedCount} Approved Posts`}
+              {loading === 'schedule' ? 'Scheduling...' : `Schedule ${approvedCount} Approved ${contentTypeLabel}`}
             </span>
           </button>
           <button
@@ -1095,7 +1167,7 @@ const PostApprovalModal: React.FC<PostApprovalModalProps> = ({
         
         {approvedCount === 0 && (
           <p className="text-sm text-gray-500 text-center mt-3">
-            Please approve at least one post before scheduling
+            Please approve at least one {contentType === 'posting' ? 'post' : 'reply'} before scheduling
           </p>
         )}
       </div>
