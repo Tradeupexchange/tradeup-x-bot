@@ -68,6 +68,7 @@ const BotControl: React.FC = () => {
   const [currentJobSettings, setCurrentJobSettings] = useState<JobSettings | null>(null);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [editingJobName, setEditingJobName] = useState('');
+  const [apiError, setApiError] = useState<string | null>(null);
 
   // Update jobs when status changes
   useEffect(() => {
@@ -90,6 +91,7 @@ const BotControl: React.FC = () => {
   const handleJobAction = async (jobId: string, action: 'start' | 'stop' | 'pause') => {
     try {
       setActionLoading(`${jobId}-${action}`);
+      setApiError(null);
       console.log(`Performing ${action} on job ${jobId}`);
       
       const result = await apiCall(`/api/bot-job/${jobId}/${action}`, { 
@@ -108,13 +110,14 @@ const BotControl: React.FC = () => {
       }, 1000);
     } catch (error) {
       console.error(`Error ${action}ing job:`, error);
-      alert(`Failed to ${action} job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setApiError(`Failed to ${action} job: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setActionLoading(null);
     }
   };
 
   const handleJobRename = async (jobId: string, newName: string) => {
     try {
+      setApiError(null);
       const result = await apiCall(`/api/bot-job/${jobId}/rename`, {
         method: 'POST',
         headers: {
@@ -132,7 +135,7 @@ const BotControl: React.FC = () => {
       }
     } catch (error) {
       console.error('Error renaming job:', error);
-      alert(`Failed to rename job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setApiError(`Failed to rename job: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -159,6 +162,7 @@ const BotControl: React.FC = () => {
   const createJobWithApproval = async (jobSettings: JobSettings, jobName: string) => {
     try {
       setActionLoading('generate-posts');
+      setApiError(null);
       console.log('🧪 Creating job with approval workflow...');
 
       // Use provided name or generate automatic name
@@ -215,7 +219,7 @@ const BotControl: React.FC = () => {
 
     } catch (error) {
       console.error('❌ Post generation failed:', error);
-      alert(`Failed to generate posts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setApiError(`Failed to generate posts: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setActionLoading(null);
     }
@@ -237,6 +241,7 @@ const BotControl: React.FC = () => {
   const regeneratePost = async (postId: string) => {
     try {
       setActionLoading(`regenerate-${postId}`);
+      setApiError(null);
       const post = generatedPosts.find(p => p.id === postId);
       if (!post) return;
 
@@ -267,7 +272,7 @@ const BotControl: React.FC = () => {
       }
     } catch (error) {
       console.error('❌ Post regeneration failed:', error);
-      alert(`Failed to regenerate post: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setApiError(`Failed to regenerate post: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setActionLoading(null);
     }
@@ -276,17 +281,18 @@ const BotControl: React.FC = () => {
   const scheduleApprovedPosts = async () => {
     try {
       setActionLoading('schedule');
+      setApiError(null);
       const approvedPosts = generatedPosts.filter(post => post.approved === true);
       
       if (approvedPosts.length === 0) {
-        alert('Please approve at least one post before scheduling.');
+        setApiError('Please approve at least one post before scheduling.');
         return;
       }
 
       console.log('📅 Scheduling approved posts...', approvedPosts);
 
-      // Create the actual job with approved posts
-      const result = await apiCall('/api/bot-job/create', {
+      // Create the actual job with approved posts - FIXED ENDPOINT
+      const result = await apiCall('/api/bot-job/create-posting-job', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -309,7 +315,7 @@ const BotControl: React.FC = () => {
 
     } catch (error) {
       console.error('❌ Scheduling failed:', error);
-      alert(`Failed to schedule posts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setApiError(`Failed to schedule posts: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setActionLoading(null);
     }
@@ -318,6 +324,7 @@ const BotControl: React.FC = () => {
   const createNewJob = async (type: 'posting' | 'replying', settings: any, jobName: string) => {
     try {
       setActionLoading('create');
+      setApiError(null);
       
       // Use provided name or generate automatic name
       const finalJobName = jobName.trim() || `Job #${jobCounter}`;
@@ -327,25 +334,67 @@ const BotControl: React.FC = () => {
       
       console.log('Creating new job:', { type, settings, name: finalJobName });
       
-      const result = await apiCall('/api/bot-job/create', {
+      // FIXED: Use the correct endpoint based on job type
+      const endpoint = type === 'posting' 
+        ? '/api/bot-job/create-posting-job'
+        : '/api/bot-job/create-reply-job';
+      
+      const result = await apiCall(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ type, settings, name: finalJobName })
+        body: JSON.stringify({ 
+          type, 
+          settings, 
+          name: finalJobName,
+          // Add specific fields for reply jobs
+          ...(type === 'replying' && {
+            keywords: settings.keywords,
+            maxRepliesPerHour: settings.maxRepliesPerHour,
+            replyTypes: settings.replyTypes,
+            autoReply: false,
+            sentiment_filter: 'positive'
+          })
+        })
       });
       
       console.log('Job creation result:', result);
       
-      // Refetch status to get updated jobs list
-      refetch();
-      setActionLoading(null);
-      setShowScheduler(false);
+      if (result.success) {
+        // Refetch status to get updated jobs list
+        refetch();
+        setShowScheduler(false);
+        alert(`${type} job created successfully!`);
+      } else {
+        throw new Error(result.error || 'Job creation failed');
+      }
       
-      alert(`${type} job created successfully!`);
     } catch (error) {
       console.error('Error creating job:', error);
-      alert(`Failed to create job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setApiError(`Failed to create job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const testConnection = async () => {
+    try {
+      setActionLoading('test-connection');
+      setApiError(null);
+      console.log('🔧 Testing API connection...');
+      
+      const result = await apiCall('/api/health', {
+        method: 'GET'
+      });
+      
+      console.log('✅ Connection test result:', result);
+      alert('Connection successful! Backend is responding.');
+      
+    } catch (error) {
+      console.error('❌ Connection test failed:', error);
+      setApiError(`Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
       setActionLoading(null);
     }
   };
@@ -408,6 +457,19 @@ const BotControl: React.FC = () => {
               <span>{actionLoading === 'create' ? 'Creating...' : 'New Job'}</span>
             </button>
 
+            <button
+              onClick={testConnection}
+              disabled={actionLoading === 'test-connection'}
+              className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors duration-200"
+            >
+              {actionLoading === 'test-connection' ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Settings className="h-4 w-4" />
+              )}
+              <span>Test API</span>
+            </button>
+
             {generatedPosts.length > 0 && (
               <button
                 onClick={() => setShowPostApproval(true)}
@@ -428,9 +490,15 @@ const BotControl: React.FC = () => {
         </div>
 
         {/* Error display */}
-        {error && (
+        {(error || apiError) && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-700">⚠️ {error}</p>
+            <p className="text-sm text-red-700">⚠️ {error || apiError}</p>
+            <button 
+              onClick={() => {setApiError(null); refetch();}}
+              className="text-sm text-red-600 hover:text-red-800 underline mt-1"
+            >
+              Clear error and retry
+            </button>
           </div>
         )}
       </div>
