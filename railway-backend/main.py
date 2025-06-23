@@ -899,8 +899,9 @@ async def fetch_tweets_from_sheets():
         # Import your Google Sheets reader
         try:
             from src.google_sheets_reader import get_tweets_for_reply
-        except ImportError:
-            logger.error("Google Sheets reader not available")
+            logger.info("✅ Successfully imported get_tweets_for_reply")
+        except ImportError as e:
+            logger.error(f"❌ Google Sheets reader not available: {e}")
             return {
                 "success": False,
                 "error": "Google Sheets integration not configured",
@@ -909,39 +910,68 @@ async def fetch_tweets_from_sheets():
             }
         
         # Get tweets from your Google Sheets using the correct function signature
-        # FIXED: Using correct parameter name (num_replies instead of max_tweets)
+        logger.info("📋 Calling get_tweets_for_reply...")
         tweets_data = get_tweets_for_reply(
             "https://docs.google.com/spreadsheets/d/1U50KjbsYUswh0IGWTPgeP97Y2kXRcYM_H1VoeyAQhpw/edit?gid=0#gid=0",
             20  # Get 20 tweets so we have enough for the rejection workflow
         )
         
+        logger.info(f"📊 Raw tweets_data returned: {type(tweets_data)}, length: {len(tweets_data) if tweets_data else 0}")
+        
         if not tweets_data or len(tweets_data) == 0:
-            logger.warning("No tweets found in Google Sheets")
+            logger.warning("❌ No tweets found in Google Sheets")
             return {
                 "success": False,
-                "error": "No tweets found in Google Sheets. Please check that your sheet has tweets and is accessible.",
+                "error": "No tweets found in Google Sheets. The sheet appears to be empty or inaccessible.",
                 "tweets": [],
                 "timestamp": datetime.now().isoformat()
             }
         
+        # Log first tweet for debugging
+        if tweets_data and len(tweets_data) > 0:
+            logger.info(f"📝 First tweet sample: {tweets_data[0]}")
+        
         # Convert to the format expected by the frontend
         processed_tweets = []
         for i, tweet_data in enumerate(tweets_data):
+            logger.info(f"🔄 Processing tweet {i}: {tweet_data}")
+            
+            # Ensure tweet_data is a dictionary
+            if not isinstance(tweet_data, dict):
+                logger.warning(f"⚠️ Tweet {i} is not a dictionary: {type(tweet_data)}")
+                continue
+            
+            tweet_content = tweet_data.get("tweet_content", "").strip()
+            tweet_id = tweet_data.get("tweet_id", f"tweet_{i}")
+            username = tweet_data.get("username", "unknown").replace("@", "")  # Remove @ if present
+            
+            # Skip if no content
+            if not tweet_content:
+                logger.warning(f"⚠️ Tweet {i} has no content, skipping")
+                continue
+            
             processed_tweet = {
-                "id": tweet_data.get("tweet_id", f"tweet_{i}"),
-                "text": tweet_data.get("tweet_content", ""),
-                "author": tweet_data.get("username", "unknown"),
-                "author_name": tweet_data.get("username", "Unknown User"),
+                "id": tweet_id,
+                "text": tweet_content,
+                "author": username,
+                "author_name": username,
                 "created_at": datetime.now().isoformat(),
-                "url": tweet_data.get("url", ""),
-                "conversation_id": tweet_data.get("tweet_id", f"tweet_{i}")
+                "url": tweet_data.get("url", f"https://twitter.com/{username}/status/{tweet_id}"),
+                "conversation_id": tweet_id
             }
             
-            # Only add if we have actual content
-            if processed_tweet["text"].strip():
-                processed_tweets.append(processed_tweet)
+            processed_tweets.append(processed_tweet)
+            logger.info(f"✅ Successfully processed tweet {i}: {tweet_content[:50]}...")
         
-        logger.info(f"Successfully fetched {len(processed_tweets)} tweets from Google Sheets")
+        logger.info(f"🎯 Successfully processed {len(processed_tweets)} tweets from Google Sheets")
+        
+        if len(processed_tweets) == 0:
+            return {
+                "success": False,
+                "error": "Found tweets in Google Sheets, but none had valid content to reply to.",
+                "tweets": [],
+                "timestamp": datetime.now().isoformat()
+            }
         
         return {
             "success": True,
@@ -952,7 +982,8 @@ async def fetch_tweets_from_sheets():
         }
         
     except Exception as e:
-        logger.error(f"Error fetching tweets from Google Sheets: {e}")
+        logger.error(f"💥 Error fetching tweets from Google Sheets: {str(e)}")
+        logger.error(f"💥 Exception details: {type(e).__name__}: {e}")
         return {
             "success": False,
             "error": f"Failed to fetch tweets from Google Sheets: {str(e)}",
@@ -1012,6 +1043,36 @@ async def test_google_sheets_connection():
         
     except Exception as e:
         logger.error(f"Error testing Google Sheets: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+    
+
+@app.get("/api/debug-sheets-data")
+async def debug_sheets_data():
+    """Debug endpoint to see raw Google Sheets data"""
+    try:
+        from src.google_sheets_reader import get_tweets_for_reply
+        
+        # Get raw data
+        raw_data = get_tweets_for_reply(
+            "https://docs.google.com/spreadsheets/d/1U50KjbsYUswh0IGWTPgeP97Y2kXRcYM_H1VoeyAQhpw/edit?gid=0#gid=0",
+            5  # Just get 5 for debugging
+        )
+        
+        return {
+            "success": True,
+            "raw_data_type": str(type(raw_data)),
+            "raw_data_length": len(raw_data) if raw_data else 0,
+            "raw_data": raw_data,
+            "first_item_type": str(type(raw_data[0])) if raw_data and len(raw_data) > 0 else "N/A",
+            "first_item_keys": list(raw_data[0].keys()) if raw_data and len(raw_data) > 0 and isinstance(raw_data[0], dict) else "N/A",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
         return {
             "success": False,
             "error": str(e),
