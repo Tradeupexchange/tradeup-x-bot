@@ -157,44 +157,44 @@ const ConnectionTest: React.FC = () => {
 
   return (
     <div className="bg-white rounded-xl p-6 shadow-sm h-full flex flex-col">
-      {/* Header with icon and title */}
-      <div className="flex items-center space-x-2 mb-4">
-        <Globe className="h-5 w-5 text-blue-600" />
-        <h3 className="text-lg font-semibold text-gray-900">Railway Backend Connection</h3>
+      {/* Header with icon, title, and server status */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-2">
+          <Globe className="h-5 w-5 text-blue-600" />
+          <h3 className="text-lg font-semibold text-gray-900">Backend Connection</h3>
+        </div>
+        
+        {/* Server Status - pushed to the right */}
+        <div 
+          className={`flex items-center space-x-2 ${
+            railwayStatus === 'unhealthy' ? 'cursor-pointer hover:opacity-80' : ''
+          }`}
+          onClick={handleStatusClick}
+        >
+          <span className="text-sm text-gray-600">Server Status:</span>
+          {railwayStatus === 'healthy' && (
+            <>
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span className="text-sm text-green-600">Responding</span>
+            </>
+          )}
+          {railwayStatus === 'unhealthy' && (
+            <>
+              <AlertCircle className="h-4 w-4 text-red-500" />
+              <span className="text-sm text-red-600">Not Responding</span>
+              {testResults.length > 0 && (
+                <span className="text-xs text-gray-500">(click for details)</span>
+              )}
+            </>
+          )}
+          {railwayStatus === 'unknown' && (
+            <span className="text-sm text-gray-600">Unknown</span>
+          )}
+        </div>
       </div>
 
       {/* Content area that grows to push button to bottom */}
       <div className="flex-1 space-y-3">
-        {/* Server Status */}
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">Server Status:</span>
-          <div 
-            className={`flex items-center space-x-2 ${
-              railwayStatus === 'unhealthy' ? 'cursor-pointer hover:opacity-80' : ''
-            }`}
-            onClick={handleStatusClick}
-          >
-            {railwayStatus === 'healthy' && (
-              <>
-                <CheckCircle className="h-4 w-4 text-green-500" />
-                <span className="text-sm text-green-600">Responding</span>
-              </>
-            )}
-            {railwayStatus === 'unhealthy' && (
-              <>
-                <AlertCircle className="h-4 w-4 text-red-500" />
-                <span className="text-sm text-red-600">Not Responding</span>
-                {testResults.length > 0 && (
-                  <span className="text-xs text-gray-500">(click for details)</span>
-                )}
-              </>
-            )}
-            {railwayStatus === 'unknown' && (
-              <span className="text-sm text-gray-600">Unknown</span>
-            )}
-          </div>
-        </div>
-
         {/* Status indicators */}
         <div className="flex items-center space-x-2">
           {status === 'testing' && (
@@ -246,14 +246,14 @@ const ConnectionTest: React.FC = () => {
         )}
       </div>
 
-      {/* Test button centered at bottom */}
+      {/* Test button centered at bottom - matching Generate Content button size */}
       <div className="flex justify-center mt-6">
         <button
           onClick={handleManualTest}
           disabled={status === 'testing'}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200"
+          className="flex items-center justify-center space-x-2 px-8 py-3 bg-blue-600 text-white text-base font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200 min-w-[200px]"
         >
-          <RefreshCw className={`h-4 w-4 ${status === 'testing' ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-5 w-5 ${status === 'testing' ? 'animate-spin' : ''}`} />
           <span>{manualTest ? 'Testing...' : 'Test Connection'}</span>
         </button>
       </div>
