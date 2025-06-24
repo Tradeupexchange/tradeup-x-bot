@@ -28,6 +28,11 @@ try:
     llm_manager = LLMManager()
     LLM_MANAGER_AVAILABLE = True
     logging.info("✅ Successfully imported and initialized LLM Manager")
+    
+    # Debug: List all available methods
+    available_methods = [method for method in dir(llm_manager) if not method.startswith('_') and callable(getattr(llm_manager, method))]
+    logging.info(f"🔍 Available LLM Manager methods: {available_methods}")
+    
 except ImportError as e:
     logging.error(f"❌ Failed to import LLM Manager: {e}")
     LLM_MANAGER_AVAILABLE = False
@@ -81,7 +86,7 @@ REPLY: [Your reply text here]
 
 def generate_reply_content(tweet_content, username=None):
     """
-    Generate a custom reply to a tweet using the LLM Manager or fallback.
+    Generate a custom reply to a tweet using the LLM Manager.
     
     Args:
         tweet_content: Content of the tweet to reply to
@@ -97,7 +102,8 @@ def generate_reply_content(tweet_content, username=None):
         if LLM_MANAGER_AVAILABLE and llm_manager:
             # Use LLM Manager to generate the response
             logging.info("🤖 Using LLM Manager for reply generation")
-            response = llm_manager.generate_response(prompt)
+            response = llm_manager.call_llm(prompt, model="gpt-3.5-turbo")
+            logging.info(f"📝 LLM response received: {response[:100]}...")
         else:
             # Fallback if LLM Manager is not available
             logging.warning("🔄 LLM Manager not available, using fallback")
@@ -110,6 +116,9 @@ def generate_reply_content(tweet_content, username=None):
                 reply_content = reply_match.group(1).strip()
                 # Clean up any extra formatting
                 reply_content = reply_content.replace('\n', ' ').strip()
+                
+                # Remove any trailing text that might be cut off
+                reply_content = reply_content.split('\n')[0].strip()
                 
                 logging.info(f"✅ Generated reply: {reply_content}")
                 return reply_content
@@ -153,10 +162,24 @@ def generate_reply(tweet_text, tweet_author=None, conversation_history=None):
         
         reply_content = generate_reply_content(tweet_text, tweet_author)
         
+        # Determine if we actually used the LLM successfully
+        llm_used = LLM_MANAGER_AVAILABLE and llm_manager is not None
+        
+        # Check if the reply looks like it was actually generated (not a fallback)
+        is_fallback = any(fallback in reply_content for fallback in [
+            "Awesome Pokemon card content!",
+            "That's a sweet pull!",
+            "Love seeing fellow collectors share their pulls!",
+            "Great content! What deck are you building next?"
+        ])
+        
+        success = llm_used and not is_fallback
+        
         return {
             "content": reply_content,
-            "success": True,
-            "llm_used": LLM_MANAGER_AVAILABLE
+            "success": success,
+            "llm_used": llm_used,
+            "is_fallback": is_fallback
         }
     except Exception as e:
         logging.error(f"❌ Error in generate_reply: {e}")
@@ -164,12 +187,74 @@ def generate_reply(tweet_text, tweet_author=None, conversation_history=None):
             "content": "Thanks for sharing! Great Pokemon TCG content. 🔥",
             "success": False,
             "error": str(e),
-            "llm_used": False
+            "llm_used": False,
+            "is_fallback": True
         }
 
 def batch_generate_replies(tweets_data):
     """
-    Generate replies for multiple tweets.
+    Generate replies for multiple tweets using LLM Manager's batch processing.
+    
+    Args:
+        tweets_data: List of tweet dictionaries
+        
+    Returns:
+        List of results with generated replies
+    """
+    try:
+        if LLM_MANAGER_AVAILABLE and llm_manager and hasattr(llm_manager, 'batch_process_tweets'):
+            # Use LLM Manager's batch processing
+            logging.info(f"🔄 Using LLM Manager batch processing for {len(tweets_data)} tweets...")
+            
+            # Convert tweets to the format expected by LLM Manager
+            formatted_tweets = []
+            for tweet in tweets_data:
+                formatted_tweet = {
+                    'text': tweet.get('tweet_content', tweet.get('text', '')),
+                    'id': tweet.get('tweet_id', tweet.get('id', '')),
+                    'username': tweet.get('username', tweet.get('author', '')),
+                    'url': tweet.get('url', '')
+                }
+                formatted_tweets.append(formatted_tweet)
+            
+            # Use LLM Manager's batch processing
+            batch_results = llm_manager.batch_process_tweets(formatted_tweets)
+            
+            # Process the batch results
+            results = []
+            for i, (tweet, is_pokemon, reply) in enumerate(batch_results):
+                original_tweet_data = tweets_data[i]
+                
+                result = {
+                    'original_tweet': original_tweet_data.get('tweet_content', original_tweet_data.get('text', '')),
+                    'username': original_tweet_data.get('username', original_tweet_data.get('author', '')),
+                    'tweet_id': original_tweet_data.get('tweet_id', original_tweet_data.get('id', '')),
+                    'tweet_url': original_tweet_data.get('url', ''),
+                    'reply_content': reply if reply else "Great Pokemon content! 🔥",
+                    'success': bool(is_pokemon and reply),
+                    'is_pokemon_related': is_pokemon,
+                    'posted': False,
+                    'llm_used': True
+                }
+                
+                results.append(result)
+            
+            logging.info(f"✅ Batch processing complete: {len(results)} replies generated")
+            return results
+            
+        else:
+            # Fall back to individual processing
+            logging.info("🔄 Falling back to individual processing...")
+            return generate_replies_individually(tweets_data)
+            
+    except Exception as e:
+        logging.error(f"❌ Error in batch reply generation: {e}")
+        # Fallback to individual processing
+        return generate_replies_individually(tweets_data)
+
+def generate_replies_individually(tweets_data):
+    """
+    Generate replies for multiple tweets individually.
     
     Args:
         tweets_data: List of tweet dictionaries
@@ -179,7 +264,7 @@ def batch_generate_replies(tweets_data):
     """
     results = []
     
-    logging.info(f"🔄 Batch processing {len(tweets_data)} tweets...")
+    logging.info(f"🔄 Individual processing {len(tweets_data)} tweets...")
     
     for i, tweet_data in enumerate(tweets_data):
         try:
@@ -202,7 +287,8 @@ def batch_generate_replies(tweets_data):
                 'error': reply_result.get('error', None),
                 'is_pokemon_related': True,  # Assume true since we're generating a reply
                 'posted': False,
-                'llm_used': reply_result.get('llm_used', False)
+                'llm_used': reply_result.get('llm_used', False),
+                'is_fallback': reply_result.get('is_fallback', True)
             }
             
             results.append(result)
@@ -211,7 +297,7 @@ def batch_generate_replies(tweets_data):
             logging.error(f"❌ Error processing tweet {i+1}: {e}")
             continue
     
-    logging.info(f"✅ Batch processing complete: {len(results)} replies generated")
+    logging.info(f"✅ Individual processing complete: {len(results)} replies generated")
     return results
 
 def test_reply_generation():
@@ -235,6 +321,9 @@ def test_reply_generation():
     
     print("🧪 Testing reply generation...")
     print(f"LLM Manager Available: {LLM_MANAGER_AVAILABLE}")
+    if LLM_MANAGER_AVAILABLE and llm_manager:
+        available_methods = [method for method in dir(llm_manager) if not method.startswith('_') and callable(getattr(llm_manager, method))]
+        print(f"Available methods: {available_methods}")
     print("-" * 50)
     
     for i, tweet in enumerate(test_tweets):
@@ -247,6 +336,7 @@ def test_reply_generation():
         print(f"Reply: {result['content']}")
         print(f"Success: {result['success']}")
         print(f"LLM Used: {result.get('llm_used', False)}")
+        print(f"Is Fallback: {result.get('is_fallback', True)}")
         if 'error' in result:
             print(f"Error: {result['error']}")
         print("-" * 30)
