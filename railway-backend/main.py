@@ -41,83 +41,88 @@ def setup_reply_functions():
     global generate_reply
     
     try:
-        # Add current directory to path
+        # Add current directory and subdirectories to path
         current_dir = os.path.dirname(os.path.abspath(__file__))
         
-        if current_dir not in sys.path:
-            sys.path.insert(0, current_dir)
+        # Common subdirectory patterns where reply_generator.py might be
+        potential_paths = [
+            current_dir,  # Same directory as main.py
+            os.path.join(current_dir, 'src'),  # src subdirectory
+            os.path.join(current_dir, 'app'),  # app subdirectory
+            os.path.join(current_dir, 'bot'),  # bot subdirectory
+        ]
         
-        logger.info(f"📁 Added to Python path: {current_dir}")
+        # Add all potential paths
+        for path in potential_paths:
+            if os.path.exists(path) and path not in sys.path:
+                sys.path.insert(0, path)
+                logger.info(f"📁 Added to Python path: {path}")
         
-        # Try to import the actual reply generator (updated import path)
+        # List all Python files for debugging
+        logger.info(f"📁 Current working directory: {os.getcwd()}")
+        logger.info(f"📁 Main script directory: {current_dir}")
+        
+        # Check which directories contain reply_generator.py
+        for path in potential_paths:
+            if os.path.exists(path):
+                py_files = [f for f in os.listdir(path) if f.endswith('.py')]
+                logger.info(f"📁 Files in {path}: {py_files}")
+                
+                reply_gen_path = os.path.join(path, 'reply_generator.py')
+                if os.path.exists(reply_gen_path):
+                    logger.info(f"✅ Found reply_generator.py at: {reply_gen_path}")
+        
+        # Try to import reply_generator
+        logger.info("🔄 Attempting to import reply_generator...")
         from reply_generator import generate_reply as actual_generate_reply
         generate_reply = actual_generate_reply
-        logger.info("✅ Successfully imported actual LLM reply generator")
+        logger.info("✅ Successfully imported reply_generator")
         
-        # Test it to make sure it works
+        # Test the function
         test_result = generate_reply("test tweet about Pokemon cards", "test_user")
         logger.info(f"🧪 Test result: {test_result}")
         
-        # Check if it's actually generating custom responses
+        # Check if it's working properly
         if isinstance(test_result, dict) and test_result.get("success", False):
-            logger.info("✅ LLM generating custom responses successfully")
+            logger.info("✅ Reply generation is working!")
             return True
         else:
-            logger.warning("⚠️ LLM test failed or returned unexpected format")
+            logger.warning("⚠️ Reply generation imported but not working as expected")
             return False
         
     except ImportError as e:
         logger.error(f"❌ Import error: {e}")
         logger.error("🔍 Possible issues:")
-        logger.error("   - reply_generator.py not found in current directory")
-        logger.error("   - llm_manager.py import path is wrong in reply_generator.py")
-        logger.error("   - Missing dependencies (openai, etc.)")
-        logger.error("   - Configuration issues (API keys, etc.)")
-        
-        # Fallback to dummy function
-        def dummy_reply(tweet_text, tweet_author=None, conversation_history=None):
-            return {
-                "content": f"Thanks for sharing! Great point about Pokemon TCG. The part about '{tweet_text[:50]}...' really resonates with the community!",
-                "success": False,
-                "error": "Using dummy response due to import issues"
-            }
-        generate_reply = dummy_reply
+        logger.error("   - reply_generator.py not found in expected directories")
+        logger.error("   - Import errors within reply_generator.py")
+        logger.error("   - llm_manager.py import issues")
+        logger.error("   - Missing dependencies or API keys")
         return False
-        
     except Exception as e:
-        logger.error(f"❌ Error testing reply generator: {e}")
-        
-        # Fallback to dummy function
-        def dummy_reply(tweet_text, tweet_author=None, conversation_history=None):
-            return {
-                "content": f"Thanks for sharing! Great point about Pokemon TCG. The part about '{tweet_text[:50]}...' really resonates with the community!",
-                "success": False,
-                "error": f"Error during setup: {str(e)}"
-            }
-        generate_reply = dummy_reply
+        logger.error(f"❌ Unexpected error: {e}")
         return False
 
-# Initial dummy reply function
+# Fallback dummy function
 def generate_reply(tweet_text, tweet_author=None, conversation_history=None):
     return {
-        "content": "Thanks for sharing! Great Pokemon TCG content.", 
+        "content": f"Thanks for sharing! Great point about Pokemon TCG. The part about '{tweet_text[:50]}...' really resonates with the community!",
         "success": False,
-        "error": "Reply generator not initialized"
+        "error": "Reply generator not properly initialized"
     }
 
-# Try to setup real reply generation
+# Try to setup reply generation
 logger.info("🚀 Setting up reply generation...")
 reply_setup_success = setup_reply_functions()
 
 if reply_setup_success:
-    logger.info("✅ LLM reply generation is ready!")
+    logger.info("✅ Reply generation is ready!")
 else:
     logger.warning("⚠️ Using fallback reply generation")
 
 def post_reply_tweet(content, reply_to_id):
     return {"success": False, "error": "Reply integration not available"}
 
-# Basic models
+# Models
 class GenerateReplyRequest(BaseModel):
     tweet_text: str
     tweet_author: Optional[str] = None
@@ -128,13 +133,13 @@ class GenerateContentRequest(BaseModel):
     style: Optional[str] = "engaging"
     include_hashtags: Optional[bool] = True
 
-# Essential endpoints only
+# Essential endpoints
 @app.get("/")
 async def root():
     return {
         "message": "Pokemon TCG Bot API is running", 
         "status": "healthy",
-        "llm_active": reply_setup_success
+        "reply_generator_active": reply_setup_success
     }
 
 @app.get("/api/health")
@@ -142,7 +147,7 @@ async def health_check():
     return {
         "status": "healthy", 
         "message": "Backend is running",
-        "llm_status": "active" if reply_setup_success else "fallback"
+        "reply_status": "active" if reply_setup_success else "fallback"
     }
 
 @app.get("/api/bot-status")
@@ -153,7 +158,7 @@ async def get_bot_status():
         "lastRun": datetime.now().isoformat(),
         "stats": {"postsToday": 0, "repliesToday": 0, "successRate": 100.0},
         "jobs": [],
-        "llm_active": reply_setup_success,
+        "reply_generator_active": reply_setup_success,
         "timestamp": datetime.now().isoformat()
     }
 
@@ -183,7 +188,7 @@ async def get_topics():
 
 @app.post("/api/generate-content")
 async def generate_content_endpoint(request: GenerateContentRequest):
-    """Generate original Pokemon TCG content using LLM"""
+    """Generate original Pokemon TCG content using reply generator"""
     try:
         # For content generation, we can reuse the reply generator with a content prompt
         content_prompt = f"Generate an engaging Pokemon TCG social media post about {request.topic}. Make it authentic and interesting for the Pokemon TCG community."
@@ -213,7 +218,7 @@ async def generate_content_endpoint(request: GenerateContentRequest):
                 "engagement_score": 88.5,
                 "hashtags": hashtags,
                 "mentions_tradeup": False,
-                "llm_generated": reply_setup_success
+                "reply_generator_used": reply_setup_success
             },
             "timestamp": datetime.now().isoformat()
         }
@@ -228,11 +233,11 @@ async def generate_content_endpoint(request: GenerateContentRequest):
 
 @app.post("/api/generate-reply")
 async def generate_reply_endpoint(request: GenerateReplyRequest):
-    """Generate a customized reply to a tweet using LLM"""
+    """Generate a customized reply to a tweet using reply generator"""
     try:
         logger.info(f"🤖 Generating reply for tweet: {request.tweet_text[:100]}...")
         
-        # Generate reply using LLM
+        # Generate reply using reply generator
         result = generate_reply(
             request.tweet_text, 
             request.tweet_author, 
@@ -241,22 +246,25 @@ async def generate_reply_endpoint(request: GenerateReplyRequest):
         
         logger.info(f"📝 Generated result: {result}")
         
-        # Handle different response formats
+        # Handle response format
         if isinstance(result, dict):
-            reply_content = result.get("content", str(result))
-            success = result.get("success", True)
+            reply_content = result.get("content", "No reply generated")
+            success = result.get("success", False)
             error = result.get("error", None)
+            llm_used = result.get("llm_used", False)
         else:
             reply_content = str(result)
             success = True
             error = None
+            llm_used = False
         
         return {
             "success": success,
             "reply": reply_content,
             "original_tweet": request.tweet_text,
             "author": request.tweet_author,
-            "llm_generated": reply_setup_success,
+            "reply_generator_used": reply_setup_success,
+            "llm_used": llm_used,
             "error": error,
             "timestamp": datetime.now().isoformat()
         }
@@ -322,7 +330,7 @@ async def create_posting_job(request: Dict[str, Any]):
         "status": "created",
         "created_at": datetime.now().isoformat(),
         "stats": {"postsToday": 0, "repliesToday": 0, "successRate": 100.0},
-        "llm_enabled": reply_setup_success
+        "reply_generator_enabled": reply_setup_success
     }
     return {"success": True, "job": job, "message": "Job created successfully"}
 
@@ -352,36 +360,53 @@ async def test_reply_generation():
             
             result = generate_reply(test_case["tweet"], test_case["author"])
             
-            # Determine if this is a real LLM response or dummy
-            is_real_llm = True
+            # Determine if this is a real response vs fallback
+            is_real_response = True
             if isinstance(result, dict):
                 content = result.get("content", "")
-                if (content.startswith("Thanks for sharing! Great Pokemon TCG content") or 
-                    "Reply generator not initialized" in content):
-                    is_real_llm = False
+                success = result.get("success", False)
+                error = result.get("error", "")
+                
+                # Check for fallback response indicators
+                if (not success or 
+                    "Reply generator not properly initialized" in error or
+                    content.startswith("Thanks for sharing! Great point about Pokemon TCG")):
+                    is_real_response = False
             
             results.append({
                 "test_input": test_case["tweet"],
                 "test_author": test_case["author"],
                 "output": result,
-                "is_real_llm": is_real_llm
+                "is_real_response": is_real_response
             })
         
-        # Check what files exist for debugging
+        # Check file structure for debugging
         current_dir = os.path.dirname(os.path.abspath(__file__))
         
+        # Check common subdirectories
+        subdirs_to_check = ['src', 'app', 'bot', '.']
         file_check = {
             "current_dir": current_dir,
-            "reply_generator_exists": os.path.exists(os.path.join(current_dir, 'reply_generator.py')),
-            "llm_manager_exists": os.path.exists(os.path.join(current_dir, 'llm_manager.py')),
-            "sys_path_includes_current": current_dir in sys.path,
+            "sys_path": sys.path[:5],  # First 5 entries
         }
         
-        overall_success = all(result["is_real_llm"] for result in results)
+        for subdir in subdirs_to_check:
+            check_path = os.path.join(current_dir, subdir) if subdir != '.' else current_dir
+            if os.path.exists(check_path):
+                py_files = [f for f in os.listdir(check_path) if f.endswith('.py')]
+                file_check[f"{subdir}_directory"] = {
+                    "exists": True,
+                    "path": check_path,
+                    "python_files": py_files,
+                    "has_reply_generator": "reply_generator.py" in py_files,
+                    "has_llm_manager": "llm_manager.py" in py_files
+                }
+        
+        overall_success = all(result["is_real_response"] for result in results)
         
         return {
             "success": True,
-            "overall_llm_working": overall_success,
+            "overall_working": overall_success,
             "setup_success": reply_setup_success,
             "test_results": results,
             "file_check": file_check,
@@ -398,7 +423,7 @@ async def test_reply_generation():
 
 @app.post("/api/generate-replies-batch")
 async def generate_replies_batch():
-    """Generate replies for multiple tweets (useful for batch processing)"""
+    """Generate replies for multiple tweets using reply generator"""
     try:
         # First fetch tweets
         tweets_response = await fetch_tweets_from_sheets()
@@ -423,17 +448,26 @@ async def generate_replies_batch():
                 )
                 
                 if isinstance(reply_result, dict):
-                    reply_content = reply_result.get("content", str(reply_result))
+                    reply_content = reply_result.get("content", "No reply generated")
+                    success = reply_result.get("success", False)
+                    error = reply_result.get("error", None)
+                    llm_used = reply_result.get("llm_used", False)
                 else:
                     reply_content = str(reply_result)
+                    success = True
+                    error = None
+                    llm_used = False
                 
                 generated_replies.append({
                     "tweet_id": tweet["id"],
                     "original_tweet": tweet["text"],
                     "author": tweet["author"],
                     "generated_reply": reply_content,
+                    "success": success,
+                    "error": error,
+                    "llm_used": llm_used,
                     "timestamp": datetime.now().isoformat(),
-                    "llm_generated": reply_setup_success
+                    "reply_generator_used": reply_setup_success
                 })
                 
             except Exception as e:
@@ -443,16 +477,18 @@ async def generate_replies_batch():
                     "original_tweet": tweet["text"],
                     "author": tweet["author"],
                     "generated_reply": "Error generating reply",
+                    "success": False,
                     "error": str(e),
+                    "llm_used": False,
                     "timestamp": datetime.now().isoformat(),
-                    "llm_generated": False
+                    "reply_generator_used": False
                 })
         
         return {
             "success": True,
             "replies": generated_replies,
             "total_processed": len(generated_replies),
-            "llm_active": reply_setup_success,
+            "reply_generator_active": reply_setup_success,
             "timestamp": datetime.now().isoformat()
         }
         
