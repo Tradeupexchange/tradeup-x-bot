@@ -64,6 +64,16 @@ interface JobSettings {
   maxRepliesPerHour?: number;
 }
 
+interface PostedReply {
+  id: string;
+  content: string;
+  originalTweet: string;
+  tweetAuthor: string;
+  replyUrl: string;
+  originalTweetUrl: string;
+  postedAt: string;
+}
+
 const BotControl: React.FC = () => {
   // Use the centralized useApi hook
   const { data: status, loading, error, lastFetch, refetch } = useApi<BotStatus>('/api/bot-status');
@@ -79,6 +89,8 @@ const BotControl: React.FC = () => {
   const [editingJobName, setEditingJobName] = useState('');
   const [apiError, setApiError] = useState<string | null>(null);
   const [currentJobType, setCurrentJobType] = useState<'posting' | 'replying'>('posting');
+  const [postedReplies, setPostedReplies] = useState<PostedReply[]>([]);
+  const [showPostedReplies, setShowPostedReplies] = useState(false);
 
   // Update jobs when status changes (filter out demo jobs)
   useEffect(() => {
@@ -1211,6 +1223,108 @@ interface ContentApprovalModalProps {
   loading: string | null;
 }
 
+const PostedRepliesModal: React.FC<{
+  replies: PostedReply[];
+  onClose: () => void;
+}> = ({ replies, onClose }) => {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[70]">
+      <div className="bg-white rounded-xl max-w-4xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-semibold text-gray-900">
+              Successfully Posted {replies.length} Replies
+            </h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <p className="text-sm text-gray-600 mt-2">
+            Your replies have been posted to Twitter. Click the links below to view them.
+          </p>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {replies.map((reply, index) => (
+            <div key={reply.id} className="border-l-4 border-green-500 bg-green-50 rounded-lg p-4">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center space-x-2">
+                  <span className="bg-green-100 text-green-800 px-2 py-1 text-xs font-medium rounded-full">
+                    Reply #{index + 1}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {new Date(reply.postedAt).toLocaleTimeString()}
+                  </span>
+                </div>
+                <div className="flex space-x-2">
+                  <a
+                    href={reply.originalTweetUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-600 hover:text-blue-800 underline flex items-center space-x-1"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    <span>Original Tweet</span>
+                  </a>
+                  <a
+                    href={reply.replyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-green-600 hover:text-green-800 underline flex items-center space-x-1 font-medium"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    <span>View Reply</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Original Tweet Context */}
+              <div className="mb-3 p-3 bg-gray-100 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">
+                  Original tweet from @{reply.tweetAuthor}:
+                </p>
+                <p className="text-sm text-gray-800 italic">
+                  "{reply.originalTweet}"
+                </p>
+              </div>
+
+              {/* Your Reply */}
+              <div className="mb-3">
+                <p className="text-sm text-gray-600 mb-1 font-medium">Your reply:</p>
+                <p className="text-gray-900 leading-relaxed font-medium">
+                  {reply.content}
+                </p>
+              </div>
+
+              {/* Status */}
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span className="text-xs text-green-800 font-medium">
+                  Successfully posted to Twitter
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="p-6 border-t border-gray-200 bg-gray-50">
+          <div className="flex justify-between items-center">
+            <div className="text-sm text-gray-600">
+              All replies have been posted and will appear in your Recent Posts section.
+            </div>
+            <button
+              onClick={onClose}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ContentApprovalModal: React.FC<ContentApprovalModalProps> = ({
   content,
   contentType,
@@ -1465,6 +1579,16 @@ const ContentApprovalModal: React.FC<ContentApprovalModalProps> = ({
     </div>
   );
 };
+
+{showPostedReplies && (
+  <PostedRepliesModal
+    replies={postedReplies}
+    onClose={() => {
+      setShowPostedReplies(false);
+      setPostedReplies([]);
+    }}
+  />
+)}
 
 // Job Card Component
 interface JobCardProps {
