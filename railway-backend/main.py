@@ -658,10 +658,79 @@ async def generate_content_enhanced(request: GenerateContentRequest):
             "timestamp": datetime.now().isoformat()
         }
 
+@app.post("/api/post-to-twitter")
+async def post_to_twitter_endpoint(request: Dict[str, Any]):
+    """Post content to Twitter (original tweet) - this is what the frontend calls"""
+    try:
+        content = request.get("content", "")
+        
+        logger.info(f"📤 Attempting to post to Twitter")
+        logger.info(f"📝 Tweet content: {content[:100]}...")
+        
+        if not content:
+            return {
+                "success": False,
+                "error": "Missing tweet content",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        if not TWITTER_POSTER_AVAILABLE or post_original_tweet is None:
+            logger.warning("🔄 Twitter poster not available, using simulation")
+            # Fallback to simulation
+            import time
+            mock_tweet_id = f"sim_tweet_{int(time.time())}"
+            
+            return {
+                "success": True,
+                "tweet_id": mock_tweet_id,
+                "message": "Tweet posted successfully (simulated - Twitter poster not available)",
+                "tweet_url": f"https://twitter.com/TradeUpApp/status/{mock_tweet_id}",
+                "content": content,
+                "simulated": True,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Use real Twitter API
+        logger.info("🐦 Using real Twitter API to post tweet...")
+        result = post_original_tweet(content)
+        
+        logger.info(f"🔍 Twitter API result: {result}")
+        
+        if result.get("success"):
+            tweet_id = result.get("tweet_id")
+            logger.info(f"✅ Successfully posted tweet with ID: {tweet_id}")
+            
+            return {
+                "success": True,
+                "tweet_id": tweet_id,
+                "message": "Tweet posted successfully to Twitter",
+                "tweet_url": f"https://twitter.com/TradeUpApp/status/{tweet_id}",
+                "content": content,
+                "posted_at": result.get("posted_at", datetime.now().isoformat()),
+                "simulated": False,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            logger.error(f"❌ Failed to post tweet: {result.get('error')}")
+            
+            return {
+                "success": False,
+                "error": result.get("error", "Unknown Twitter API error"),
+                "rate_limited": "Too Many Requests" in str(result.get("error", "")),
+                "timestamp": datetime.now().isoformat()
+            }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in post_to_twitter_endpoint: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
 #END POSTING FUNCTIONS
 
 #JOB MANAGEMENT
-# 4. ADD NEW ENDPOINTS for bot job management:
 
 @app.post("/api/bot-job/{job_id}/start")
 async def start_bot_job(job_id: str):
