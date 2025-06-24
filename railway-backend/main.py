@@ -8,6 +8,24 @@ import logging
 import sys
 import os
 
+try:
+    # Try to import from src directory first
+    from src.google_sheets_reader import get_tweets_for_reply, get_tweets_from_sheet, test_sheet_connection
+    GOOGLE_SHEETS_AVAILABLE = True
+    logger.info("✅ Google Sheets reader imported successfully")
+except ImportError:
+    try:
+        # Fallback to current directory
+        from google_sheets_reader import get_tweets_for_reply, get_tweets_from_sheet, test_sheet_connection
+        GOOGLE_SHEETS_AVAILABLE = True
+        logger.info("✅ Google Sheets reader imported from current directory")
+    except ImportError as e:
+        logger.warning(f"⚠️ Google Sheets reader not available: {e}")
+        GOOGLE_SHEETS_AVAILABLE = False
+
+#REPLACE WITH NEW SHEETS URL
+GOOGLE_SHEETS_URL = "https://docs.google.com/spreadsheets/d/1U50KjbsYUswh0IGWTPgeP97Y2kXRcYM_H1VoeyAQhpw/edit?gid=0#gid=0"
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -281,143 +299,204 @@ async def generate_reply_endpoint(request: GenerateReplyRequest):
 
 @app.get("/api/fetch-tweets-from-sheets")
 async def fetch_tweets_from_sheets():
-    """Fetch tweets from Google Sheets - currently returns mock data"""
-    mock_tweets = [
-        {
-            "id": "tweet_1",
-            "text": "Just pulled a Charizard ex from my latest Pokemon TCG pack! The artwork is incredible. Building a fire deck around it now!",
-            "author": "PokemonFan123",
-            "author_name": "Pokemon Fan",
-            "created_at": (datetime.now() - timedelta(hours=2)).isoformat(),
-            "url": "https://twitter.com/PokemonFan123/status/123456789",
-            "conversation_id": "tweet_1"
-        },
-        {
-            "id": "tweet_2",
-            "text": "Building a new deck around Pikachu VMAX! Anyone have tips for energy management with electric decks?",
-            "author": "TCGBuilder",
-            "author_name": "TCG Builder", 
-            "created_at": (datetime.now() - timedelta(hours=1)).isoformat(),
-            "url": "https://twitter.com/TCGBuilder/status/123456790",
-            "conversation_id": "tweet_2"
-        },
-        {
-            "id": "tweet_3",
-            "text": "Attended my first Pokemon TCG tournament today! Lost in the second round but learned so much. The community is amazing!",
-            "author": "NewTrainer99",
-            "author_name": "New Trainer",
-            "created_at": (datetime.now() - timedelta(minutes=30)).isoformat(),
-            "url": "https://twitter.com/NewTrainer99/status/123456791",
-            "conversation_id": "tweet_3"
-        }
-    ]
-    
-    return {
-        "success": True,
-        "tweets": mock_tweets,
-        "count": len(mock_tweets),
-        "source": "Mock Data (Google Sheets integration pending)",
-        "timestamp": datetime.now().isoformat()
-    }
-
-@app.post("/api/bot-job/create-posting-job")
-async def create_posting_job(request: Dict[str, Any]):
-    job = {
-        "id": f"posting_job_{int(datetime.now().timestamp())}",
-        "type": "posting",
-        "name": request.get("name", "Pokemon TCG Posting Job"),
-        "settings": request.get("settings", {}),
-        "status": "created",
-        "created_at": datetime.now().isoformat(),
-        "stats": {"postsToday": 0, "repliesToday": 0, "successRate": 100.0},
-        "reply_generator_enabled": reply_setup_success
-    }
-    return {"success": True, "job": job, "message": "Job created successfully"}
-
-@app.get("/api/test-reply-generation")
-async def test_reply_generation():
-    """Test if reply generation is working properly"""
+    """Fetch tweets from Google Sheets for reply generation"""
     try:
-        test_cases = [
-            {
-                "tweet": "Just pulled a Charizard card from my Pokemon TCG pack! So excited!",
-                "author": "TestUser1"
-            },
-            {
-                "tweet": "Building a new deck around Pikachu VMAX, any tips?",
-                "author": "TestUser2"
-            },
-            {
-                "tweet": "Attending my first Pokemon tournament tomorrow, wish me luck!",
-                "author": "TestUser3"
-            }
-        ]
-        
-        results = []
-        
-        for i, test_case in enumerate(test_cases):
-            logger.info(f"🧪 Testing case {i+1}: {test_case['tweet'][:50]}...")
-            
-            result = generate_reply(test_case["tweet"], test_case["author"])
-            
-            # Determine if this is a real response vs fallback
-            is_real_response = True
-            if isinstance(result, dict):
-                content = result.get("content", "")
-                success = result.get("success", False)
-                error = result.get("error", "")
-                
-                # Check for fallback response indicators
-                if (not success or 
-                    "Reply generator not properly initialized" in error or
-                    content.startswith("Thanks for sharing! Great point about Pokemon TCG")):
-                    is_real_response = False
-            
-            results.append({
-                "test_input": test_case["tweet"],
-                "test_author": test_case["author"],
-                "output": result,
-                "is_real_response": is_real_response
-            })
-        
-        # Check file structure for debugging
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        # Check common subdirectories
-        subdirs_to_check = ['src', 'app', 'bot', '.']
-        file_check = {
-            "current_dir": current_dir,
-            "sys_path": sys.path[:5],  # First 5 entries
-        }
-        
-        for subdir in subdirs_to_check:
-            check_path = os.path.join(current_dir, subdir) if subdir != '.' else current_dir
-            if os.path.exists(check_path):
-                py_files = [f for f in os.listdir(check_path) if f.endswith('.py')]
-                file_check[f"{subdir}_directory"] = {
-                    "exists": True,
-                    "path": check_path,
-                    "python_files": py_files,
-                    "has_reply_generator": "reply_generator.py" in py_files,
-                    "has_llm_manager": "llm_manager.py" in py_files
+        if not GOOGLE_SHEETS_AVAILABLE:
+            # Return mock data if Google Sheets reader is not available
+            logger.warning("📊 Google Sheets reader not available, returning mock data")
+            mock_tweets = [
+                {
+                    "id": "tweet_1",
+                    "text": "Just pulled a Charizard ex from my latest Pokemon TCG pack! The artwork is incredible. Building a fire deck around it now!",
+                    "author": "PokemonFan123",
+                    "author_name": "Pokemon Fan",
+                    "created_at": (datetime.now() - timedelta(hours=2)).isoformat(),
+                    "url": "https://twitter.com/PokemonFan123/status/123456789",
+                    "conversation_id": "tweet_1"
+                },
+                {
+                    "id": "tweet_2",
+                    "text": "Building a new deck around Pikachu VMAX! Anyone have tips for energy management with electric decks?",
+                    "author": "TCGBuilder",
+                    "author_name": "TCG Builder", 
+                    "created_at": (datetime.now() - timedelta(hours=1)).isoformat(),
+                    "url": "https://twitter.com/TCGBuilder/status/123456790",
+                    "conversation_id": "tweet_2"
+                },
+                {
+                    "id": "tweet_3",
+                    "text": "Attended my first Pokemon TCG tournament today! Lost in the second round but learned so much. The community is amazing!",
+                    "author": "NewTrainer99",
+                    "author_name": "New Trainer",
+                    "created_at": (datetime.now() - timedelta(minutes=30)).isoformat(),
+                    "url": "https://twitter.com/NewTrainer99/status/123456791",
+                    "conversation_id": "tweet_3"
+                },
+                # Add more mock tweets to test with larger numbers
+                {
+                    "id": "tweet_4",
+                    "text": "Finally completed my Eeveelution collection! Took me months to find that perfect condition Espeon card. The hunt was worth it!",
+                    "author": "EeveeCollector",
+                    "author_name": "Eevee Collector",
+                    "created_at": (datetime.now() - timedelta(minutes=45)).isoformat(),
+                    "url": "https://twitter.com/EeveeCollector/status/123456792",
+                    "conversation_id": "tweet_4"
+                },
+                {
+                    "id": "tweet_5",
+                    "text": "New Pokemon set releases always get me excited! Pre-ordered 3 booster boxes of the upcoming expansion. Fingers crossed for chase cards!",
+                    "author": "BoosterBoxBen",
+                    "author_name": "Booster Box Ben",
+                    "created_at": (datetime.now() - timedelta(hours=3)).isoformat(),
+                    "url": "https://twitter.com/BoosterBoxBen/status/123456793",
+                    "conversation_id": "tweet_5"
+                },
+                {
+                    "id": "tweet_6",
+                    "text": "Teaching my 8-year-old how to play Pokemon TCG. Love seeing the next generation get into the game! Any tips for beginner-friendly decks?",
+                    "author": "PokeDadTrainer",
+                    "author_name": "Poke Dad Trainer",
+                    "created_at": (datetime.now() - timedelta(hours=4)).isoformat(),
+                    "url": "https://twitter.com/PokeDadTrainer/status/123456794",
+                    "conversation_id": "tweet_6"
+                },
+                {
+                    "id": "tweet_7",
+                    "text": "Market prices on vintage Pokemon cards are insane right now. My 1998 Charizard is worth more than my car! 🚗➡️🐉",
+                    "author": "VintageCardKing",
+                    "author_name": "Vintage Card King",
+                    "created_at": (datetime.now() - timedelta(hours=5)).isoformat(),
+                    "url": "https://twitter.com/VintageCardKing/status/123456795",
+                    "conversation_id": "tweet_7"
+                },
+                {
+                    "id": "tweet_8",
+                    "text": "Local game store is hosting a Pokemon TCG tournament this weekend. Prize support looks amazing! Time to test my new deck build.",
+                    "author": "CompetitivePlayer",
+                    "author_name": "Competitive Player",
+                    "created_at": (datetime.now() - timedelta(hours=6)).isoformat(),
+                    "url": "https://twitter.com/CompetitivePlayer/status/123456796",
+                    "conversation_id": "tweet_8"
+                },
+                {
+                    "id": "tweet_9",
+                    "text": "Just discovered Pokemon TCG Live and I'm hooked! The digital version is perfect for testing deck ideas before buying physical cards.",
+                    "author": "DigitalTrainer",
+                    "author_name": "Digital Trainer",
+                    "created_at": (datetime.now() - timedelta(hours=7)).isoformat(),
+                    "url": "https://twitter.com/DigitalTrainer/status/123456797",
+                    "conversation_id": "tweet_9"
+                },
+                {
+                    "id": "tweet_10",
+                    "text": "Pulled my first alternate art card today! The artwork on these special cards is absolutely stunning. Pokemon artists are incredible.",
+                    "author": "ArtCollector2024",
+                    "author_name": "Art Collector",
+                    "created_at": (datetime.now() - timedelta(hours=8)).isoformat(),
+                    "url": "https://twitter.com/ArtCollector2024/status/123456798",
+                    "conversation_id": "tweet_10"
                 }
+            ]
+            
+            return {
+                "success": True,
+                "tweets": mock_tweets,
+                "count": len(mock_tweets),
+                "source": "Mock Data (Google Sheets reader not available)",
+                "timestamp": datetime.now().isoformat()
+            }
         
-        overall_success = all(result["is_real_response"] for result in results)
+        # Try to fetch real tweets from Google Sheets
+        logger.info("📊 Fetching tweets from Google Sheets...")
+        tweets = get_tweets_from_sheet(GOOGLE_SHEETS_URL, max_tweets=50)
+        
+        if not tweets:
+            logger.warning("📊 No tweets found in Google Sheets, falling back to mock data")
+            # Fall back to a few mock tweets if the sheet is empty
+            mock_tweets = [
+                {
+                    "id": "mock_tweet_1",
+                    "text": "Just opened a Pokemon TCG booster pack and got some amazing cards!",
+                    "author": "MockUser1",
+                    "author_name": "Mock User 1",
+                    "created_at": datetime.now().isoformat(),
+                    "url": "https://twitter.com/MockUser1/status/1234567890",
+                    "conversation_id": "mock_tweet_1"
+                },
+                {
+                    "id": "mock_tweet_2", 
+                    "text": "Building a new Pokemon deck for the upcoming tournament. Excited to test it out!",
+                    "author": "MockUser2",
+                    "author_name": "Mock User 2",
+                    "created_at": datetime.now().isoformat(),
+                    "url": "https://twitter.com/MockUser2/status/1234567891",
+                    "conversation_id": "mock_tweet_2"
+                }
+            ]
+            
+            return {
+                "success": True,
+                "tweets": mock_tweets,
+                "count": len(mock_tweets),
+                "source": "Mock Data (Google Sheets empty)",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        logger.info(f"✅ Successfully fetched {len(tweets)} tweets from Google Sheets")
         
         return {
             "success": True,
-            "overall_working": overall_success,
-            "setup_success": reply_setup_success,
-            "test_results": results,
-            "file_check": file_check,
+            "tweets": tweets,
+            "count": len(tweets),
+            "source": "Google Sheets",
             "timestamp": datetime.now().isoformat()
         }
         
     except Exception as e:
-        logger.error(f"Error in test: {e}")
+        logger.error(f"❌ Error fetching tweets from Google Sheets: {e}")
+        
+        # Return error response
         return {
             "success": False,
+            "tweets": [],
+            "count": 0,
+            "source": "Error",
             "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+    
+# Add a new endpoint to test Google Sheets connection
+@app.get("/api/test-google-sheets")
+async def test_google_sheets_connection():
+    """Test the connection to Google Sheets and return status"""
+    try:
+        if not GOOGLE_SHEETS_AVAILABLE:
+            return {
+                "success": False,
+                "message": "Google Sheets reader is not available. Check if google_sheets_reader.py is installed.",
+                "available": False,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        logger.info("🧪 Testing Google Sheets connection...")
+        test_result = test_sheet_connection(GOOGLE_SHEETS_URL)
+        
+        return {
+            "success": test_result["success"],
+            "message": test_result["message"],
+            "available": True,
+            "tweets_found": test_result["tweets_found"],
+            "sample_tweets": test_result["sample_tweets"],
+            "sheets_url": GOOGLE_SHEETS_URL,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error testing Google Sheets: {e}")
+        return {
+            "success": False,
+            "message": f"Error testing Google Sheets connection: {str(e)}",
+            "available": GOOGLE_SHEETS_AVAILABLE,
             "timestamp": datetime.now().isoformat()
         }
 
