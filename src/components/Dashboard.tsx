@@ -10,6 +10,13 @@ interface DashboardData {
   topics: any[];
 }
 
+interface RecentPostsResponse {
+  success: boolean;
+  posts: any[];
+  count: number;
+  timestamp: string;
+}
+
 const Dashboard: React.FC = () => {
   const [dashboardData, setDashboardData] = useState<DashboardData>({
     posts: [],
@@ -19,6 +26,14 @@ const Dashboard: React.FC = () => {
   // Fetch data from Railway backend
   const { data: initialPosts } = useApi('/api/posts', { autoRefresh: false });
   const { data: initialTopics } = useApi('/api/topics', { autoRefresh: false });
+  
+  // Add recent posts API integration
+  const { 
+    data: recentPostsData, 
+    loading: postsLoading, 
+    error: postsError, 
+    refetch: refetchPosts 
+  } = useApi<RecentPostsResponse>('/api/recent-posts');
 
   // Set initial data
   useEffect(() => {
@@ -35,6 +50,19 @@ const Dashboard: React.FC = () => {
     }
   }, [initialTopics]);
 
+  // Function to refresh posts (only called after posting new content)
+  const handleRefreshPosts = () => {
+    console.log('🔄 Dashboard: Refreshing recent posts after posting...');
+    refetchPosts();
+  };
+
+  // Log recent posts data when it changes
+  useEffect(() => {
+    if (recentPostsData?.posts) {
+      console.log('📊 Dashboard: Recent posts updated:', recentPostsData.posts.length, 'posts');
+    }
+  }, [recentPostsData]);
+
   return (
     <div className="space-y-8">
       {/* Top row: Connection Test and Test Buttons side by side */}
@@ -46,18 +74,36 @@ const Dashboard: React.FC = () => {
         
         {/* Test Buttons */}
         <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
-          <TestButtons />
+          <TestButtons onPostSuccess={handleRefreshPosts} />
         </div>
       </div>
       
       {/* Bot Control Center - full width */}
       <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
-        <BotControl />
+        <BotControl onPostSuccess={handleRefreshPosts} />
       </div>
       
       {/* Recent Posts - full width */}
       <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
-        <RecentPosts posts={dashboardData.posts} />
+        <RecentPosts 
+          posts={recentPostsData?.posts || []}
+          loading={postsLoading}
+        />
+        
+        {/* Show error if there's an issue loading recent posts */}
+        {postsError && (
+          <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-700 text-sm">
+              ⚠️ Error loading recent posts: {postsError}
+            </p>
+            <button 
+              onClick={handleRefreshPosts}
+              className="text-red-600 hover:text-red-800 underline text-sm mt-1"
+            >
+              Try again
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

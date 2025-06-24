@@ -263,6 +263,74 @@ async def get_topics():
     return {"success": True, "topics": topics, "total": len(topics)}
 
 
+#RECENT POSTS STORAGE
+
+
+recent_posts_storage = []
+
+def add_to_recent_posts(post_data: Dict[str, Any]):
+    """Add a new post to the recent posts storage"""
+    global recent_posts_storage
+    
+    # Create post object
+    post = {
+        "id": post_data.get("tweet_id", f"post_{int(time.time())}"),
+        "content": post_data.get("content", ""),
+        "type": post_data.get("type", "post"),  # "post" or "reply"
+        "engagement": {
+            "likes": 0,
+            "retweets": 0,
+            "replies": 0
+        },
+        "timestamp": post_data.get("posted_at", datetime.now().isoformat()),
+        "topics": post_data.get("topics", []),
+        "tweet_url": post_data.get("tweet_url", ""),
+        "tweet_id": post_data.get("tweet_id", "")
+    }
+    
+    # Add reply-specific data if it's a reply
+    if post_data.get("type") == "reply" and post_data.get("replied_to"):
+        post["replied_to"] = {
+            "tweet_id": post_data["replied_to"].get("tweet_id", ""),
+            "author": post_data["replied_to"].get("author", ""),
+            "content": post_data["replied_to"].get("content", ""),
+            "url": post_data["replied_to"].get("url", "")
+        }
+    
+    # Add to beginning of list (most recent first)
+    recent_posts_storage.insert(0, post)
+    
+    # Keep only the most recent 50 posts
+    if len(recent_posts_storage) > 50:
+        recent_posts_storage = recent_posts_storage[:50]
+    
+    logger.info(f"✅ Added post to recent posts: {post['id']}")
+
+# GET endpoint to fetch recent posts
+@app.get("/api/recent-posts")
+async def get_recent_posts():
+    """Get recent posts and replies"""
+    try:
+        logger.info("📋 Fetching recent posts...")
+        
+        return {
+            "success": True,
+            "posts": recent_posts_storage,
+            "count": len(recent_posts_storage),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching recent posts: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+#END RECENT POSTS STORAGE
+
 #POSTING FUNCTIONS
 
 # Add these endpoints to your main.py for original tweet posting:
@@ -663,6 +731,7 @@ async def post_to_twitter_endpoint(request: Dict[str, Any]):
     """Post content to Twitter (original tweet) - this is what the frontend calls"""
     try:
         content = request.get("content", "")
+        topics = request.get("topics", [])
         
         logger.info(f"📤 Attempting to post to Twitter")
         logger.info(f"📝 Tweet content: {content[:100]}...")
@@ -679,12 +748,23 @@ async def post_to_twitter_endpoint(request: Dict[str, Any]):
             # Fallback to simulation
             import time
             mock_tweet_id = f"sim_tweet_{int(time.time())}"
+            tweet_url = f"https://twitter.com/TradeUpApp/status/{mock_tweet_id}"
+            
+            # Add to recent posts even if simulated
+            add_to_recent_posts({
+                "tweet_id": mock_tweet_id,
+                "content": content,
+                "type": "post",
+                "tweet_url": tweet_url,
+                "topics": topics,
+                "posted_at": datetime.now().isoformat()
+            })
             
             return {
                 "success": True,
                 "tweet_id": mock_tweet_id,
                 "message": "Tweet posted successfully (simulated - Twitter poster not available)",
-                "tweet_url": f"https://twitter.com/TradeUpApp/status/{mock_tweet_id}",
+                "tweet_url": tweet_url,
                 "content": content,
                 "simulated": True,
                 "timestamp": datetime.now().isoformat()
@@ -698,15 +778,26 @@ async def post_to_twitter_endpoint(request: Dict[str, Any]):
         
         if result.get("success"):
             tweet_id = result.get("tweet_id")
+            tweet_url = f"https://twitter.com/TradeUpApp/status/{tweet_id}"
             logger.info(f"✅ Successfully posted tweet with ID: {tweet_id}")
+            
+            # Add to recent posts
+            add_to_recent_posts({
+                "tweet_id": tweet_id,
+                "content": content,
+                "type": "post",
+                "tweet_url": tweet_url,
+                "topics": topics,
+                "posted_at": datetime.now().isoformat()
+            })
             
             return {
                 "success": True,
                 "tweet_id": tweet_id,
                 "message": "Tweet posted successfully to Twitter",
-                "tweet_url": f"https://twitter.com/TradeUpApp/status/{tweet_id}",
+                "tweet_url": tweet_url,
                 "content": content,
-                "posted_at": result.get("posted_at", datetime.now().isoformat()),
+                "posted_at": datetime.now().isoformat(),
                 "simulated": False,
                 "timestamp": datetime.now().isoformat()
             }
@@ -1333,88 +1424,118 @@ async def generate_replies_batch():
         }
     
 @app.post("/api/post-reply-with-tracking")
-async def post_reply_with_tracking(request: Dict[str, Any]):
-    """Post a reply to Twitter with real Twitter API integration"""
+async def post_reply_with_tracking_endpoint(request: Dict[str, Any]):
+    """Post a reply to Twitter with tracking"""
     try:
         content = request.get("content", "")
         reply_to_tweet_id = request.get("reply_to_tweet_id", "")
         
-        logger.info(f"📤 POST-REPLY-WITH-TRACKING: Starting...")
-        logger.info(f"📝 Content: {content}")
-        logger.info(f"🆔 Reply to tweet ID: {reply_to_tweet_id}")
-        logger.info(f"🔍 Request data: {request}")
+        logger.info(f"📤 Attempting to post reply to tweet {reply_to_tweet_id}")
+        logger.info(f"📝 Reply content: {content[:100]}...")
+        
+        if not content:
+            return {
+                "success": False,
+                "error": "Missing reply content",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        if not reply_to_tweet_id:
+            return {
+                "success": False,
+                "error": "Missing reply_to_tweet_id",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Get original tweet info from the request (if provided)
+        original_tweet_author = request.get("original_tweet_author", "")
+        original_tweet_content = request.get("original_tweet_content", "")
         
         if not TWITTER_POSTER_AVAILABLE or post_reply_tweet is None:
-            logger.error("❌ TWITTER POSTER NOT AVAILABLE")
-            return {
-                "success": False,
-                "error": "Twitter poster not available",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        if not content or not reply_to_tweet_id:
-            logger.error(f"❌ MISSING DATA - content: '{content}', tweet_id: '{reply_to_tweet_id}'")
-            return {
-                "success": False,
-                "error": "Missing content or reply_to_tweet_id",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        # Use real Twitter API
-        logger.info("🐦 CALLING REAL TWITTER API...")
-        logger.info(f"🎯 Function call: post_reply_tweet('{content}', '{reply_to_tweet_id}')")
-        
-        result = post_reply_tweet(content, reply_to_tweet_id)
-        
-        logger.info(f"🔍 TWITTER API RESULT: {result}")
-        logger.info(f"🔍 Result type: {type(result)}")
-        logger.info(f"🔍 Result success: {result.get('success') if isinstance(result, dict) else 'Not a dict'}")
-        
-        if isinstance(result, dict) and result.get("success"):
-            logger.info(f"✅ SUCCESS: Posted reply with ID: {result.get('tweet_id')}")
+            logger.warning("🔄 Twitter poster not available, using simulation")
+            # Fallback to simulation
+            import time
+            mock_reply_id = f"sim_reply_{int(time.time())}"
+            reply_url = f"https://twitter.com/TradeUpApp/status/{mock_reply_id}"
+            
+            # Add to recent posts even if simulated
+            add_to_recent_posts({
+                "tweet_id": mock_reply_id,
+                "content": content,
+                "type": "reply",
+                "tweet_url": reply_url,
+                "posted_at": datetime.now().isoformat(),
+                "replied_to": {
+                    "tweet_id": reply_to_tweet_id,
+                    "author": original_tweet_author,
+                    "content": original_tweet_content,
+                    "url": f"https://twitter.com/{original_tweet_author}/status/{reply_to_tweet_id}"
+                }
+            })
             
             return {
                 "success": True,
-                "tweet_id": result.get("tweet_id"),
-                "message": "Reply posted successfully to Twitter",
-                "reply_url": result.get("url", f"https://twitter.com/TradeUpApp/status/{result.get('tweet_id')}"),
-                "original_tweet_id": reply_to_tweet_id,
+                "tweet_id": mock_reply_id,
+                "message": "Reply posted successfully (simulated - Twitter poster not available)",
+                "tweet_url": reply_url,
                 "content": content,
-                "posted_at": result.get("posted_at"),
+                "simulated": True,
+                "reply_to_tweet_id": reply_to_tweet_id,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Use real Twitter API for reply
+        logger.info("🐦 Using real Twitter API to post reply...")
+        result = post_reply_tweet(content, reply_to_tweet_id)
+        
+        logger.info(f"🔍 Twitter API result: {result}")
+        
+        if result.get("success"):
+            reply_id = result.get("tweet_id")
+            reply_url = f"https://twitter.com/TradeUpApp/status/{reply_id}"
+            logger.info(f"✅ Successfully posted reply with ID: {reply_id}")
+            
+            # Add to recent posts
+            add_to_recent_posts({
+                "tweet_id": reply_id,
+                "content": content,
+                "type": "reply",
+                "tweet_url": reply_url,
+                "posted_at": datetime.now().isoformat(),
+                "replied_to": {
+                    "tweet_id": reply_to_tweet_id,
+                    "author": original_tweet_author,
+                    "content": original_tweet_content,
+                    "url": f"https://twitter.com/{original_tweet_author}/status/{reply_to_tweet_id}"
+                }
+            })
+            
+            return {
+                "success": True,
+                "tweet_id": reply_id,
+                "message": "Reply posted successfully to Twitter",
+                "tweet_url": reply_url,
+                "content": content,
+                "reply_to_tweet_id": reply_to_tweet_id,
+                "posted_at": datetime.now().isoformat(),
                 "simulated": False,
                 "timestamp": datetime.now().isoformat()
             }
         else:
-            logger.error(f"❌ TWITTER API FAILED")
-            logger.error(f"❌ Full result: {result}")
-            
-            # Extract error message
-            if isinstance(result, dict):
-                error_msg = result.get("error", "Unknown Twitter API error")
-                rate_limited = result.get("rate_limited", False)
-            else:
-                error_msg = f"Unexpected result type: {type(result)} - {result}"
-                rate_limited = False
-            
-            logger.error(f"❌ Error message: {error_msg}")
-            logger.error(f"❌ Rate limited: {rate_limited}")
+            logger.error(f"❌ Failed to post reply: {result.get('error')}")
             
             return {
                 "success": False,
-                "error": error_msg,
-                "rate_limited": rate_limited,
-                "debug_result": result,
+                "error": result.get("error", "Unknown Twitter API error"),
+                "rate_limited": "Too Many Requests" in str(result.get("error", "")),
                 "timestamp": datetime.now().isoformat()
             }
         
     except Exception as e:
-        logger.error(f"❌ EXCEPTION in post_reply_with_tracking: {e}")
-        import traceback
-        logger.error(f"❌ Full traceback: {traceback.format_exc()}")
+        logger.error(f"❌ Error in post_reply_with_tracking_endpoint: {e}")
         return {
             "success": False,
             "error": str(e),
-            "traceback": traceback.format_exc(),
             "timestamp": datetime.now().isoformat()
         }
 
