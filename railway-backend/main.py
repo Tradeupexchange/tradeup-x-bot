@@ -16,19 +16,10 @@ app = FastAPI(title="Pokemon TCG Bot API", description="API for Pokemon TCG enga
 # ===== CORS CONFIGURATION - THIS FIXES YOUR "Failed to fetch" ERROR =====
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://tradeup-bot-engagement-dashboard.netlify.app",
-        "https://tradeup-bot-engageme*.netlify.app",  # Wildcard for Netlify previews
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "*"  # Temporary - remove this after testing
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+    allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
 )
 
 @app.middleware("http")
@@ -46,57 +37,15 @@ async def add_cors_headers(request: Request, call_next):
 
 # Add preflight handler for OPTIONS requests
 @app.options("/{rest_of_path:path}")
-async def preflight_handler(request: Request, rest_of_path: str):
-    origin = request.headers.get("origin")
-    
+async def preflight_handler(rest_of_path: str):
     return JSONResponse(
         content={},
         headers={
-            "Access-Control-Allow-Origin": origin or "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, HEAD",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "*",
             "Access-Control-Allow-Headers": "*",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "86400"
         }
     )
-
-# CORS TESTING
-@app.get("/api/debug-cors")
-async def debug_cors():
-    """Debug CORS configuration"""
-    return {
-        "success": True,
-        "message": "CORS is working!",
-        "timestamp": datetime.now().isoformat(),
-        "headers_info": "If you can see this, CORS is configured correctly"
-    }
-
-@app.get("/api/debug-sheets-cors")
-async def debug_sheets_cors():
-    """Debug Google Sheets with CORS headers"""
-    try:
-        from src.google_sheets_reader import get_tweets_for_reply
-        
-        tweets_data = get_tweets_for_reply(
-            "https://docs.google.com/spreadsheets/d/1U50KjbsYUswh0IGWTPgeP97Y2kXRcYM_H1VoeyAQhpw/edit?gid=0#gid=0",
-            5
-        )
-        
-        return {
-            "success": True,
-            "tweets_found": len(tweets_data) if tweets_data else 0,
-            "sample_tweets": tweets_data[:2] if tweets_data else [],
-            "message": "Google Sheets integration working"
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "message": "Google Sheets integration failed"
-        }
-
-
-## END CORS TESTING
 
 # ===== IMPROVED IMPORT SECTION WITH BETTER ERROR HANDLING =====
 def setup_reply_functions():
@@ -256,116 +205,6 @@ class BulkReplyRequest(BaseModel):
     num_replies: int = 5
     post_to_twitter: bool = False
     require_confirmation: bool = False
-
-# ===== DEBUG ENDPOINTS =====
-@app.get("/api/debug-reply-generation")
-async def debug_reply_generation():
-    """Debug endpoint to check reply generation setup"""
-    try:
-        # Test the import
-        import_status = {}
-        
-        try:
-            from src.reply_generator import generate_reply as actual_generate_reply
-            import_status["reply_generator"] = {
-                "imported": True,
-                "function_type": str(type(actual_generate_reply)),
-                "error": None
-            }
-        except ImportError as e:
-            import_status["reply_generator"] = {
-                "imported": False,
-                "error": str(e)
-            }
-        
-        try:
-            from src.twitter_poster import post_reply_tweet, generate_and_post_replies
-            import_status["twitter_poster"] = {
-                "imported": True,
-                "functions_available": {
-                    "post_reply_tweet": "post_reply_tweet" in globals(),
-                    "generate_and_post_replies": "generate_and_post_replies" in globals()
-                },
-                "error": None
-            }
-        except ImportError as e:
-            import_status["twitter_poster"] = {
-                "imported": False,
-                "error": str(e)
-            }
-        
-        # Test the generate_reply function that's currently being used
-        test_tweet = "Just pulled a Charizard card from my Pokemon TCG pack! So excited!"
-        test_result = generate_reply(test_tweet, "TestUser")
-        
-        # Check if we're using the dummy function
-        is_using_dummy = (
-            isinstance(test_result, dict) and 
-            test_result.get("content", "").startswith("Thanks for sharing! Great point about Pokemon TCG")
-        )
-        
-        return {
-            "success": True,
-            "import_status": import_status,
-            "current_function_test": {
-                "input_tweet": test_tweet,
-                "generated_reply": test_result,
-                "is_using_dummy_function": is_using_dummy,
-                "function_location": str(generate_reply) if 'generate_reply' in globals() else "Not found"
-            },
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-@app.get("/api/test-actual-llm")
-async def test_actual_llm():
-    """Test the actual LLM reply generation directly"""
-    try:
-        # Try to import and use the actual reply generator
-        from src.reply_generator import generate_reply as real_generate_reply
-        
-        test_tweet = "Just pulled a Charizard card from my Pokemon TCG pack! So excited!"
-        test_author = "TestUser"
-        
-        # Test the real function
-        result = real_generate_reply(test_tweet, test_author)
-        
-        return {
-            "success": True,
-            "message": "Successfully imported and tested actual LLM",
-            "test_input": {
-                "tweet": test_tweet,
-                "author": test_author
-            },
-            "llm_output": result,
-            "function_info": str(real_generate_reply),
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except ImportError as e:
-        return {
-            "success": False,
-            "error": f"Could not import reply_generator: {str(e)}",
-            "possible_causes": [
-                "src/reply_generator.py doesn't exist",
-                "reply_generator.py is missing the generate_reply function", 
-                "OpenAI API key not configured",
-                "Missing dependencies (openai, etc.)"
-            ],
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"Error testing actual LLM: {str(e)}",
-            "timestamp": datetime.now().isoformat()
-        }
 
 # Health check endpoint
 @app.get("/")
@@ -778,8 +617,6 @@ async def test_endpoint():
             "/api/generate-content",
             "/api/generate-reply",
             "/api/post-reply",
-            "/api/debug-reply-generation",
-            "/api/test-actual-llm"
         ]
     }
 
@@ -1331,27 +1168,6 @@ async def test_google_sheets_connection():
         }
     
 
-@app.get("/api/debug-sheets-data")
-async def debug_sheets_data():
-    """Debug endpoint to see raw Google Sheets data"""
-    try:
-        from src.google_sheets_reader import get_tweets_for_reply
-        
-        # Get raw data
-        raw_data = get_tweets_for_reply(
-            "https://docs.google.com/spreadsheets/d/1U50KjbsYUswh0IGWTPgeP97Y2kXRcYM_H1VoeyAQhpw/edit?gid=0#gid=0",
-            5  # Just get 5 for debugging
-        )
-        
-        return {
-            "success": True,
-            "raw_data_type": str(type(raw_data)),
-            "raw_data_length": len(raw_data) if raw_data else 0,
-            "raw_data": raw_data,
-            "first_item_type": str(type(raw_data[0])) if raw_data and len(raw_data) > 0 else "N/A",
-            "first_item_keys": list(raw_data[0].keys()) if raw_data and len(raw_data) > 0 and isinstance(raw_data[0], dict) else "N/A",
-            "timestamp": datetime.now().isoformat()
-        }
         
     except Exception as e:
         return {
