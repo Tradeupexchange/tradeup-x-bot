@@ -555,40 +555,6 @@ async def test_google_sheets_connection():
             "timestamp": datetime.now().isoformat()
         }
     
-# Add a new endpoint to test Google Sheets connection
-@app.get("/api/test-google-sheets")
-async def test_google_sheets_connection():
-    """Test the connection to Google Sheets and return status"""
-    try:
-        if not GOOGLE_SHEETS_AVAILABLE:
-            return {
-                "success": False,
-                "message": "Google Sheets reader is not available. Check if google_sheets_reader.py is installed.",
-                "available": False,
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        logger.info("🧪 Testing Google Sheets connection...")
-        test_result = test_sheet_connection(GOOGLE_SHEETS_URL)
-        
-        return {
-            "success": test_result["success"],
-            "message": test_result["message"],
-            "available": True,
-            "tweets_found": test_result["tweets_found"],
-            "sample_tweets": test_result["sample_tweets"],
-            "sheets_url": GOOGLE_SHEETS_URL,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ Error testing Google Sheets: {e}")
-        return {
-            "success": False,
-            "message": f"Error testing Google Sheets connection: {str(e)}",
-            "available": GOOGLE_SHEETS_AVAILABLE,
-            "timestamp": datetime.now().isoformat()
-        }
 
 @app.post("/api/generate-replies-batch")
 async def generate_replies_batch():
@@ -663,6 +629,53 @@ async def generate_replies_batch():
         
     except Exception as e:
         logger.error(f"Error in batch reply generation: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+    
+@app.post("/api/post-reply-with-tracking")
+async def post_reply_with_tracking(request: Dict[str, Any]):
+    """Post a reply to Twitter with tracking (placeholder implementation)"""
+    try:
+        content = request.get("content", "")
+        reply_to_tweet_id = request.get("reply_to_tweet_id", "")
+        
+        logger.info(f"📤 Attempting to post reply to tweet {reply_to_tweet_id}")
+        logger.info(f"📝 Reply content: {content[:100]}...")
+        
+        # TODO: Implement actual Twitter API posting here
+        # For now, we'll simulate the posting
+        
+        # Simulate success (you'll need to implement actual Twitter API integration)
+        success = True  # Change this when you implement real Twitter API
+        
+        if success:
+            # Generate a mock tweet ID for the reply
+            import time
+            mock_reply_id = f"reply_{int(time.time())}"
+            
+            logger.info(f"✅ Successfully 'posted' reply (simulated) with ID: {mock_reply_id}")
+            
+            return {
+                "success": True,
+                "tweet_id": mock_reply_id,
+                "message": "Reply posted successfully (simulated)",
+                "reply_url": f"https://twitter.com/TradeUpApp/status/{mock_reply_id}",
+                "original_tweet_id": reply_to_tweet_id,
+                "content": content,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Failed to post to Twitter",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in post_reply_with_tracking: {e}")
         return {
             "success": False,
             "error": str(e),
