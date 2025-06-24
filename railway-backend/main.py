@@ -265,7 +265,7 @@ async def get_topics():
 
 #RECENT POSTS STORAGE
 
-
+# In-memory storage for recent posts (in production, use a database)
 recent_posts_storage = []
 
 def add_to_recent_posts(post_data: Dict[str, Any]):
