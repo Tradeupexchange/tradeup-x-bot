@@ -173,8 +173,6 @@ if reply_setup_success:
 else:
     logger.warning("⚠️ Using fallback reply generation")
 
-def post_reply_tweet(content, reply_to_id):
-    return {"success": False, "error": "Reply integration not available"}
 
 # Models
 class GenerateReplyRequest(BaseModel):
@@ -873,6 +871,106 @@ async def get_twitter_posting_stats():
         
     except Exception as e:
         logger.error(f"❌ Error getting posting stats: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+    
+# Add this debug endpoint to your main.py to diagnose the issue:
+
+@app.get("/api/debug-twitter-integration")
+async def debug_twitter_integration():
+    """Debug endpoint to check Twitter integration status"""
+    try:
+        debug_info = {
+            "twitter_poster_available": TWITTER_POSTER_AVAILABLE,
+            "functions_imported": {},
+            "import_path": "unknown",
+            "environment_variables": {
+                "TWITTER_API_KEY": bool(os.getenv("TWITTER_API_KEY")),
+                "TWITTER_API_SECRET": bool(os.getenv("TWITTER_API_SECRET")),
+                "TWITTER_ACCESS_TOKEN": bool(os.getenv("TWITTER_ACCESS_TOKEN")),
+                "TWITTER_ACCESS_SECRET": bool(os.getenv("TWITTER_ACCESS_SECRET")),
+            }
+        }
+        
+        # Check which functions are available
+        if TWITTER_POSTER_AVAILABLE:
+            debug_info["functions_imported"] = {
+                "post_reply_tweet": post_reply_tweet is not None,
+                "post_original_tweet": post_original_tweet is not None,
+                "test_twitter_connection": test_twitter_connection is not None,
+                "get_posting_stats": get_posting_stats is not None,
+            }
+            
+            # Check the actual function types
+            debug_info["function_types"] = {
+                "post_reply_tweet": str(type(post_reply_tweet)),
+                "post_original_tweet": str(type(post_original_tweet)),
+            }
+        
+        # Test a direct call to see what happens
+        if TWITTER_POSTER_AVAILABLE and post_reply_tweet is not None:
+            try:
+                # Try calling the function with test data to see the response structure
+                debug_info["test_call_result"] = "Function exists and is callable"
+            except Exception as e:
+                debug_info["test_call_error"] = str(e)
+        
+        return {
+            "success": True,
+            "debug_info": debug_info,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+# Also add this test endpoint to try a direct call:
+@app.post("/api/test-direct-twitter-call")
+async def test_direct_twitter_call():
+    """Test calling the Twitter function directly"""
+    try:
+        if not TWITTER_POSTER_AVAILABLE:
+            return {
+                "success": False,
+                "error": "Twitter poster not available",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        if post_reply_tweet is None:
+            return {
+                "success": False,
+                "error": "post_reply_tweet function is None",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Test with dummy data (this won't actually post because the tweet ID is fake)
+        test_content = "Test reply content"
+        test_tweet_id = "0000000000000000000"  # Fake tweet ID for testing
+        
+        logger.info(f"🧪 Testing direct call to post_reply_tweet...")
+        logger.info(f"📝 Test content: {test_content}")
+        logger.info(f"🆔 Test tweet ID: {test_tweet_id}")
+        
+        result = post_reply_tweet(test_content, test_tweet_id)
+        
+        logger.info(f"🔍 Direct call result: {result}")
+        
+        return {
+            "success": True,
+            "message": "Direct call completed",
+            "result": result,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in direct Twitter call test: {e}")
         return {
             "success": False,
             "error": str(e),
