@@ -310,18 +310,6 @@ const BotControl: React.FC = () => {
     );
   };
 
-  const rejectContent = async (contentId: string) => {
-    const contentItem = generatedContent.find(c => c.id === contentId);
-    
-    if (contentItem?.type === 'reply') {
-      // For replies, just regenerate the same tweet
-      await regenerateContent(contentId);
-    } else {
-      // For posts, regenerate the same content
-      await regenerateContent(contentId);
-    }
-  };
-
   const regenerateContent = async (contentId: string) => {
     try {
       setActionLoading(`regenerate-${contentId}`);
@@ -382,6 +370,106 @@ const BotControl: React.FC = () => {
       }
     } catch (error) {
       console.error('❌ Content regeneration failed:', error);
+      setApiError(`Failed to regenerate content: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const regenerateForDifferentTweet = async (contentId: string) => {
+    try {
+      setActionLoading(`regenerate-different-${contentId}`);
+      setApiError(null);
+      const contentItem = generatedContent.find(c => c.id === contentId);
+      if (!contentItem) return;
+
+      if (contentItem.type === 'reply') {
+        // For replies, get a different tweet from the sheets and generate a reply to that
+        const tweetsResult = await apiCall('/api/fetch-tweets-from-sheets', {
+          method: 'GET'
+        });
+
+        if (tweetsResult.success && tweetsResult.tweets && tweetsResult.tweets.length > 0) {
+          // Filter out the current tweet and pick a random different one
+          const differentTweets = tweetsResult.tweets.filter((tweet: any) => tweet.id !== contentItem.tweetId);
+          
+          if (differentTweets.length === 0) {
+            setApiError('No other tweets available to generate a different reply.');
+            setActionLoading(null);
+            return;
+          }
+
+          const randomTweet = differentTweets[Math.floor(Math.random() * differentTweets.length)];
+
+          const replyResult = await apiCall('/api/generate-reply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tweet_text: randomTweet.text,
+              tweet_author: randomTweet.author
+            })
+          });
+
+          if (replyResult.success && replyResult.reply) {
+            setGeneratedContent(prev => 
+              prev.map(c => 
+                c.id === contentId 
+                  ? {
+                      ...c,
+                      content: replyResult.reply,
+                      originalTweet: randomTweet.text,
+                      tweetId: randomTweet.id,
+                      tweetAuthor: randomTweet.author,
+                      originalTweetUrl: `https://twitter.com/${randomTweet.author}/status/${randomTweet.id}`,
+                      approved: null
+                    }
+                  : c
+              )
+            );
+          }
+        }
+      } else if (contentItem.type === 'post') {
+        // For posts, generate with a different topic
+        const availableTopics = (currentJobSettings as any)?.topics || ['Pokemon TCG', 'Card Pulls', 'Deck Building', 'Tournaments'];
+        const differentTopics = availableTopics.filter((topic: string) => topic !== contentItem.topic);
+        
+        if (differentTopics.length === 0) {
+          // If no different topics, just regenerate with the same topic
+          await regenerateContent(contentId);
+          return;
+        }
+
+        const randomTopic = differentTopics[Math.floor(Math.random() * differentTopics.length)];
+
+        const contentResult = await apiCall('/api/generate-content', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic: randomTopic,
+            count: 1
+          })
+        });
+
+        if (contentResult.success && contentResult.content) {
+          setGeneratedContent(prev => 
+            prev.map(c => 
+              c.id === contentId 
+                ? {
+                    ...c,
+                    content: contentResult.content.content || contentResult.content,
+                    topic: randomTopic,
+                    approved: null,
+                    engagement_score: contentResult.content.engagement_score,
+                    hashtags: contentResult.content.hashtags,
+                    mentions_tradeup: contentResult.content.mentions_tradeup
+                  }
+                : c
+            )
+          );
+        }
+      }
+    } catch (error) {
+      console.error('❌ Content regeneration for different item failed:', error);
       setApiError(`Failed to regenerate content: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setActionLoading(null);
@@ -689,8 +777,8 @@ const BotControl: React.FC = () => {
             content={generatedContent}
             contentType={currentJobType}
             onApprove={approveContent}
-            onReject={rejectContent}
             onRegenerate={regenerateContent}
+            onRegenerateForDifferent={regenerateForDifferentTweet}
             onSchedule={scheduleApprovedContent}
             onClose={() => setShowContentApproval(false)}
             loading={actionLoading}
@@ -801,6 +889,7 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
             value={jobName}
             onChange={(e) => setJobName(e.target.value)}
             placeholder="Enter a name for this job or leave empty for auto-generation"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
 
@@ -1098,13 +1187,13 @@ const ReplyingSettings: React.FC<{ settings: any; onChange: (settings: any) => v
   );
 };
 
-// Updated Content Approval Modal to show different UI for replies
+// Updated Content Approval Modal with enhanced action buttons and tooltips
 interface ContentApprovalModalProps {
   content: GeneratedContent[];
   contentType: 'posting' | 'replying';
   onApprove: (contentId: string) => void;
-  onReject: (contentId: string) => void;
   onRegenerate: (contentId: string) => void;
+  onRegenerateForDifferent: (contentId: string) => void;
   onSchedule: () => void;
   onClose: () => void;
   loading: string | null;
@@ -1114,8 +1203,8 @@ const ContentApprovalModal: React.FC<ContentApprovalModalProps> = ({
   content,
   contentType,
   onApprove,
-  onReject,
   onRegenerate,
+  onRegenerateForDifferent,
   onSchedule,
   onClose,
   loading
@@ -1244,33 +1333,61 @@ const ContentApprovalModal: React.FC<ContentApprovalModalProps> = ({
                 )}
               </div>
               
-              {/* Action buttons */}
+              {/* Enhanced Action buttons with tooltips */}
               <div className="flex gap-2 flex-shrink-0">
-                <button
-                  onClick={() => onApprove(item.id)}
-                  disabled={item.approved === true}
-                  className={`p-2 rounded-lg transition-all duration-200 ${
-                    item.approved === true
-                      ? 'bg-green-600 text-white cursor-default'
-                      : 'bg-green-100 text-green-800 hover:bg-green-200 hover:scale-105'
-                  }`}
-                  title={`Approve ${item.type}`}
-                >
-                  <Check className="h-4 w-4" />
-                </button>
+                {/* Approve Button - Green Check */}
+                <div className="relative group">
+                  <button
+                    onClick={() => onApprove(item.id)}
+                    disabled={item.approved === true}
+                    className={`p-2 rounded-lg transition-all duration-200 ${
+                      item.approved === true
+                        ? 'bg-green-600 text-white cursor-default'
+                        : 'bg-green-100 text-green-800 hover:bg-green-200 hover:scale-105'
+                    }`}
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                    Approve
+                  </div>
+                </div>
                 
-                <button
-                  onClick={() => onReject(item.id)}
-                  disabled={loading === `regenerate-${item.id}`}
-                  className="p-2 rounded-lg bg-red-100 text-red-800 hover:bg-red-200 hover:scale-105 transition-all duration-200 disabled:opacity-50"
-                  title={`Reject and regenerate ${item.type}`}
-                >
-                  {loading === `regenerate-${item.id}` ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RotateCcw className="h-4 w-4" />
-                  )}
-                </button>
+                {/* Regenerate Same Content Button - Blue Circular Arrows */}
+                <div className="relative group">
+                  <button
+                    onClick={() => onRegenerate(item.id)}
+                    disabled={loading === `regenerate-${item.id}`}
+                    className="p-2 rounded-lg bg-blue-100 text-blue-800 hover:bg-blue-200 hover:scale-105 transition-all duration-200 disabled:opacity-50"
+                  >
+                    {loading === `regenerate-${item.id}` ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4" />
+                    )}
+                  </button>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                    {item.type === 'reply' ? 'Regenerate for this tweet' : 'Regenerate this content'}
+                  </div>
+                </div>
+
+                {/* Regenerate Different Content Button - Red X */}
+                <div className="relative group">
+                  <button
+                    onClick={() => onRegenerateForDifferent(item.id)}
+                    disabled={loading === `regenerate-different-${item.id}`}
+                    className="p-2 rounded-lg bg-red-100 text-red-800 hover:bg-red-200 hover:scale-105 transition-all duration-200 disabled:opacity-50"
+                  >
+                    {loading === `regenerate-different-${item.id}` ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <X className="h-4 w-4" />
+                    )}
+                  </button>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                    {item.type === 'reply' ? 'Regenerate for different tweet' : 'Regenerate different topic'}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1286,7 +1403,7 @@ const ContentApprovalModal: React.FC<ContentApprovalModalProps> = ({
                     ? contentType === 'posting' 
                       ? '✓ Approved for scheduling' 
                       : '✓ Approved for immediate posting'
-                    : loading === `regenerate-${item.id}`
+                    : loading?.includes(item.id)
                     ? '🔄 Regenerating content...'
                     : '✗ Regenerating new version...'
                   }
