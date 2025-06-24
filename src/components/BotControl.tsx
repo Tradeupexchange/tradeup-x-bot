@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Square, RefreshCw, AlertCircle, CheckCircle, MessageSquare, Reply, Settings, Clock, Target, Eye, Check, X, Calendar, Plus, Trash2, Edit2, RotateCcw } from 'lucide-react';
+import { Play, Square, RefreshCw, AlertCircle, CheckCircle, MessageSquare, Reply, Settings, Clock, Target, Eye, Check, X, Calendar, Plus, Trash2, Edit2, RotateCcw, ExternalLink } from 'lucide-react';
 import { useApi, useNextRefreshTime, apiCall } from '../hooks/useApi';
 
 interface BotJob {
@@ -45,6 +45,8 @@ interface GeneratedContent {
   hashtags?: string[];
   mentions_tradeup?: boolean;
   tweetIndex?: number; // Track which tweet from the sheet this is
+  autoPost?: boolean; // Flag for immediate posting after approval
+  originalTweetUrl?: string; // Direct link to original tweet
 }
 
 interface JobSettings {
@@ -58,14 +60,8 @@ interface JobSettings {
     marketAnalysis: boolean;
     tournaments: boolean;
   };
-  // Reply settings
-  keywords?: string[];
+  // Reply settings (simplified)
   maxRepliesPerHour?: number;
-  replyTypes?: {
-    helpful: boolean;
-    engaging: boolean;
-    promotional: boolean;
-  };
 }
 
 const BotControl: React.FC = () => {
@@ -191,7 +187,7 @@ const BotControl: React.FC = () => {
       let content: GeneratedContent[] = [];
 
       if (jobType === 'posting') {
-        // Step 1: Generate posts for approval
+        // Generate posts for approval
         console.log('📝 Generating posts for approval...');
         
         for (let i = 0; i < (jobSettings.postsPerDay || 5); i++) {
@@ -233,12 +229,63 @@ const BotControl: React.FC = () => {
         });
 
       } else if (jobType === 'replying') {
-        // Step 1: Fetch tweets from Google Sheets and generate replies one by one
-        console.log('📝 Fetching tweets from Google Sheets and generating replies...');
+        // Generate ALL replies at once instead of one by one
+        console.log('📝 Generating all replies for approval...');
         
-        // Start by generating the first reply
-        await generateNextReply(0, jobSettings.maxRepliesPerHour || 5);
-        return; // Exit early - generateNextReply will handle setting the content
+        const numReplies = jobSettings.maxRepliesPerHour || 5;
+        
+        // Fetch tweets from Google Sheets
+        const tweetsResult = await apiCall('/api/fetch-tweets-from-sheets', {
+          method: 'GET'
+        });
+
+        if (!tweetsResult.success || !tweetsResult.tweets || tweetsResult.tweets.length === 0) {
+          setApiError('No tweets found in Google Sheets to reply to. Please check your Google Sheets setup.');
+          setActionLoading(null);
+          return;
+        }
+
+        // Generate replies for the requested number of tweets
+        const tweetsToProcess = tweetsResult.tweets.slice(0, numReplies);
+        
+        for (let i = 0; i < tweetsToProcess.length; i++) {
+          const tweet = tweetsToProcess[i];
+          
+          try {
+            const replyResult = await apiCall('/api/generate-reply', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                tweet_text: tweet.text,
+                tweet_author: tweet.author
+              })
+            });
+
+            if (replyResult.success && replyResult.reply) {
+              content.push({
+                id: `reply-${Date.now()}-${i}`,
+                content: replyResult.reply,
+                type: 'reply',
+                originalTweet: tweet.text,
+                tweetId: tweet.id,
+                tweetAuthor: tweet.author,
+                approved: null,
+                scheduledTime: 'On Approval',
+                tweetIndex: i,
+                autoPost: true,
+                originalTweetUrl: `https://twitter.com/${tweet.author}/status/${tweet.id}`
+              });
+            }
+          } catch (error) {
+            console.error(`Error generating reply for tweet ${i}:`, error);
+          }
+        }
+
+        if (content.length === 0) {
+          setApiError('Failed to generate any replies. Please try again.');
+          setActionLoading(null);
+          return;
+        }
       }
 
       setGeneratedContent(content);
@@ -250,80 +297,6 @@ const BotControl: React.FC = () => {
     } catch (error) {
       console.error('❌ Content generation failed:', error);
       setApiError(`Failed to generate content: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  // New function to generate replies one by one from Google Sheets
-  const generateNextReply = async (tweetIndex: number, maxReplies: number) => {
-    try {
-      setActionLoading('generate-content');
-      console.log(`📝 Generating reply for tweet #${tweetIndex + 1}...`);
-
-      // Fetch tweets from Google Sheets using the correct endpoint
-      const tweetsResult = await apiCall('/api/fetch-tweets-from-sheets', {
-        method: 'GET'
-      });
-
-      if (!tweetsResult.success || !tweetsResult.tweets || tweetsResult.tweets.length === 0) {
-        setApiError('No tweets found in Google Sheets to reply to. Please check your Google Sheets setup.');
-        setActionLoading(null);
-        return;
-      }
-
-      // Get the specific tweet by index
-      if (tweetIndex >= tweetsResult.tweets.length) {
-        setApiError(`No more tweets available in Google Sheets. Found ${tweetsResult.tweets.length} tweets total.`);
-        setActionLoading(null);
-        return;
-      }
-
-      const tweet = tweetsResult.tweets[tweetIndex];
-      console.log(`📤 Found tweet from @${tweet.author}: ${tweet.text.substring(0, 50)}...`);
-      
-      // Generate reply for this specific tweet
-      const replyResult = await apiCall('/api/generate-reply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tweet_text: tweet.text,
-          tweet_author: tweet.author
-        })
-      });
-
-      if (replyResult.success && replyResult.reply) {
-        const newReply: GeneratedContent = {
-          id: `reply-${Date.now()}-${tweetIndex}`,
-          content: replyResult.reply,
-          type: 'reply',
-          originalTweet: tweet.text,
-          tweetId: tweet.id,
-          tweetAuthor: tweet.author,
-          approved: null,
-          scheduledTime: `${9 + Math.floor(tweetIndex / 2)}:${(tweetIndex % 2) * 30}0`.padStart(5, '0'),
-          tweetIndex: tweetIndex // Track which tweet this is for rejection handling
-        };
-
-        console.log(`✅ Generated reply: ${replyResult.reply.substring(0, 50)}...`);
-
-        // Add this reply to the current content
-        setGeneratedContent(prev => [...prev, newReply]);
-        
-        // Set up the approval modal if this is the first reply
-        if (tweetIndex === 0) {
-          setCurrentJobSettings({ maxRepliesPerHour: maxReplies } as any);
-          setCurrentJobType('replying');
-          setShowScheduler(false);
-          setShowContentApproval(true);
-        }
-      } else {
-        setApiError('Failed to generate reply for the tweet.');
-      }
-
-    } catch (error) {
-      console.error('❌ Reply generation failed:', error);
-      setApiError(`Failed to generate reply: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setActionLoading(null);
     }
@@ -341,15 +314,8 @@ const BotControl: React.FC = () => {
     const contentItem = generatedContent.find(c => c.id === contentId);
     
     if (contentItem?.type === 'reply') {
-      // For replies, remove the current one and fetch the next tweet
-      setGeneratedContent(prev => prev.filter(c => c.id !== contentId));
-      
-      // Get the next tweet index
-      const currentIndex = (contentItem as any).tweetIndex || 0;
-      const nextIndex = currentIndex + 1;
-      
-      // Generate reply for the next tweet
-      await generateNextReply(nextIndex, currentJobSettings?.maxRepliesPerHour || 5);
+      // For replies, just regenerate the same tweet
+      await regenerateContent(contentId);
     } else {
       // For posts, regenerate the same content
       await regenerateContent(contentId);
@@ -429,41 +395,101 @@ const BotControl: React.FC = () => {
       const approvedItems = generatedContent.filter(item => item.approved === true);
       
       if (approvedItems.length === 0) {
-        setApiError('Please approve at least one item before scheduling.');
+        setApiError('Please approve at least one item before posting.');
         return;
       }
 
-      console.log(`📅 Scheduling approved ${currentJobType}...`, approvedItems);
+      console.log(`📅 Processing approved ${currentJobType}...`, approvedItems);
 
-      // Create the actual job with approved content
-      const endpoint = currentJobType === 'posting' 
-        ? '/api/bot-job/create-posting-job'
-        : '/api/bot-job/create-reply-job';
+      if (currentJobType === 'replying') {
+        // For replies, post them immediately instead of scheduling
+        console.log('🚀 Posting replies immediately...');
+        
+        let successCount = 0;
+        const results = [];
 
-      const result = await apiCall(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: currentJobType,
-          name: (currentJobSettings as any)?.name || 'Untitled Job',
-          settings: {
-            ...currentJobSettings,
-            approvedContent: approvedItems,
-            autoPost: true
+        for (const reply of approvedItems) {
+          try {
+            console.log(`📤 Posting reply to tweet ${reply.tweetId}...`);
+            
+            const postResult = await apiCall('/api/post-reply', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                content: reply.content,
+                reply_to_tweet_id: reply.tweetId
+              })
+            });
+
+            if (postResult.success) {
+              successCount++;
+              results.push({
+                ...reply,
+                posted: true,
+                postedAt: new Date().toISOString(),
+                replyUrl: `https://twitter.com/TradeUpApp/status/${postResult.tweet_id}`,
+                originalTweetUrl: reply.originalTweetUrl || `https://twitter.com/${reply.tweetAuthor}/status/${reply.tweetId}`
+              });
+              console.log(`✅ Successfully posted reply to @${reply.tweetAuthor}`);
+            } else {
+              console.error(`❌ Failed to post reply to @${reply.tweetAuthor}:`, postResult.error);
+              results.push({
+                ...reply,
+                posted: false,
+                error: postResult.error
+              });
+            }
+          } catch (error) {
+            console.error(`❌ Error posting reply to @${reply.tweetAuthor}:`, error);
+            results.push({
+              ...reply,
+              posted: false,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            });
           }
-        })
-      });
+        }
 
-      if (result.success) {
-        alert(`Successfully scheduled ${approvedItems.length} ${currentJobType === 'posting' ? 'posts' : 'replies'}!`);
+        // Show success message
+        if (successCount > 0) {
+          alert(`Successfully posted ${successCount} out of ${approvedItems.length} replies! Check the Recent Posts section to see them.`);
+        } else {
+          alert('No replies were successfully posted. Please check your Twitter API connection.');
+        }
+
+        // Close the modal and refresh
         setShowContentApproval(false);
         setGeneratedContent([]);
-        refetch(); // Refresh the jobs list
+        refetch(); // Refresh to show new posts in Recent Posts section
+
+      } else {
+        // For posts, use the original scheduling logic
+        const endpoint = '/api/bot-job/create-posting-job';
+
+        const result = await apiCall(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: currentJobType,
+            name: (currentJobSettings as any)?.name || 'Untitled Job',
+            settings: {
+              ...currentJobSettings,
+              approvedContent: approvedItems,
+              autoPost: true
+            }
+          })
+        });
+
+        if (result.success) {
+          alert(`Successfully scheduled ${approvedItems.length} posts!`);
+          setShowContentApproval(false);
+          setGeneratedContent([]);
+          refetch(); // Refresh the jobs list
+        }
       }
 
     } catch (error) {
-      console.error('❌ Scheduling failed:', error);
-      setApiError(`Failed to schedule content: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('❌ Processing failed:', error);
+      setApiError(`Failed to process content: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setActionLoading(null);
     }
@@ -498,9 +524,7 @@ const BotControl: React.FC = () => {
           name: finalJobName,
           // Add specific fields for reply jobs
           ...(type === 'replying' && {
-            keywords: settings.keywords,
             maxRepliesPerHour: settings.maxRepliesPerHour,
-            replyTypes: settings.replyTypes,
             autoReply: false,
             sentiment_filter: 'positive'
           })
@@ -709,14 +733,8 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
       tournaments: false
     },
     
-    // Reply settings
-    keywords: ['Pokemon', 'TCG', 'Charizard', 'Pikachu'],
-    maxRepliesPerHour: 10,
-    replyTypes: {
-      helpful: true,
-      engaging: true,
-      promotional: false
-    }
+    // Reply settings (simplified)
+    maxRepliesPerHour: 10
   });
 
   const addTopic = () => {
@@ -749,9 +767,7 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
           postingTimeEnd: settings.postingTimeEnd,
           contentTypes: settings.contentTypes
         } : {
-          keywords: settings.keywords,
-          maxRepliesPerHour: settings.maxRepliesPerHour,
-          replyTypes: settings.replyTypes
+          maxRepliesPerHour: settings.maxRepliesPerHour
         };
         onCreateJobWithApproval(jobSettings, jobName, jobType);
       } else {
@@ -785,7 +801,6 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
             value={jobName}
             onChange={(e) => setJobName(e.target.value)}
             placeholder="Enter a name for this job or leave empty for auto-generation"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
@@ -1033,7 +1048,57 @@ const EnhancedPostingSettings: React.FC<{
   );
 };
 
-// Unified Content Approval Modal for both posts and replies
+// Simplified Replying Settings Component - Just number of replies
+const ReplyingSettings: React.FC<{ settings: any; onChange: (settings: any) => void }> = ({
+  settings,
+  onChange
+}) => {
+  return (
+    <div className="space-y-6">
+      {/* Number of replies to generate and post */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Number of Replies to Generate: {settings.maxRepliesPerHour}
+        </label>
+        <input
+          type="range"
+          min="1"
+          max="20"
+          value={settings.maxRepliesPerHour}
+          onChange={(e) => onChange({
+            ...settings,
+            maxRepliesPerHour: parseInt(e.target.value)
+          })}
+          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+        />
+        <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <span>1</span>
+          <span>10</span>
+          <span>20</span>
+        </div>
+        <p className="text-xs text-gray-600 mt-2">
+          Replies will be generated from tweets in your Google Sheet, approved by you, then automatically posted.
+        </p>
+      </div>
+
+      {/* Auto-posting notice */}
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div className="flex items-start space-x-2">
+          <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-sm font-medium text-green-900">Instant Reply Workflow</h4>
+            <p className="text-xs text-green-700 mt-1">
+              Replies will be generated from your Google Sheet, shown for approval, then automatically posted to Twitter once approved. 
+              They'll appear in your Recent Posts section with direct links to the original tweets.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Updated Content Approval Modal to show different UI for replies
 interface ContentApprovalModalProps {
   content: GeneratedContent[];
   contentType: 'posting' | 'replying';
@@ -1060,6 +1125,7 @@ const ContentApprovalModal: React.FC<ContentApprovalModalProps> = ({
   const pendingCount = content.filter(c => c.approved === null).length;
 
   const contentTypeLabel = contentType === 'posting' ? 'Posts' : 'Replies';
+  const actionLabel = contentType === 'posting' ? 'Schedule' : 'Post Now';
 
   return (
     <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -1070,6 +1136,15 @@ const ContentApprovalModal: React.FC<ContentApprovalModalProps> = ({
             <X className="h-5 w-5" />
           </button>
         </div>
+        
+        {/* Updated notice for replies */}
+        {contentType === 'replying' && (
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              🚀 <strong>Instant Posting:</strong> Approved replies will be posted immediately to Twitter and appear in your Recent Posts section with links to the original tweets.
+            </p>
+          </div>
+        )}
         
         {/* Stats bar */}
         <div className="mt-4 grid grid-cols-4 gap-4 text-sm">
@@ -1130,9 +1205,18 @@ const ContentApprovalModal: React.FC<ContentApprovalModalProps> = ({
                         Reply to @{item.tweetAuthor}
                       </span>
                       <span className="text-xs text-gray-500 flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
+                        <Target className="h-3 w-3" />
                         {item.scheduledTime}
                       </span>
+                      <a 
+                        href={item.originalTweetUrl || `https://twitter.com/${item.tweetAuthor}/status/${item.tweetId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        View Original Tweet
+                      </a>
                     </>
                   )}
                 </div>
@@ -1184,7 +1268,7 @@ const ContentApprovalModal: React.FC<ContentApprovalModalProps> = ({
                   {loading === `regenerate-${item.id}` ? (
                     <RefreshCw className="h-4 w-4 animate-spin" />
                   ) : (
-                    <X className="h-4 w-4" />
+                    <RotateCcw className="h-4 w-4" />
                   )}
                 </button>
               </div>
@@ -1199,7 +1283,9 @@ const ContentApprovalModal: React.FC<ContentApprovalModalProps> = ({
                   item.approved ? 'text-green-800' : 'text-red-800'
                 }`}>
                   {item.approved 
-                    ? '✓ Approved for scheduling' 
+                    ? contentType === 'posting' 
+                      ? '✓ Approved for scheduling' 
+                      : '✓ Approved for immediate posting'
                     : loading === `regenerate-${item.id}`
                     ? '🔄 Regenerating content...'
                     : '✗ Regenerating new version...'
@@ -1221,11 +1307,16 @@ const ContentApprovalModal: React.FC<ContentApprovalModalProps> = ({
           >
             {loading === 'schedule' ? (
               <RefreshCw className="h-4 w-4 animate-spin" />
-            ) : (
+            ) : contentType === 'posting' ? (
               <Calendar className="h-4 w-4" />
+            ) : (
+              <Target className="h-4 w-4" />
             )}
             <span>
-              {loading === 'schedule' ? 'Scheduling...' : `Schedule ${approvedCount} Approved ${contentTypeLabel}`}
+              {loading === 'schedule' ? 
+                (contentType === 'posting' ? 'Scheduling...' : 'Posting...') : 
+                `${actionLabel} ${approvedCount} Approved ${contentTypeLabel}`
+              }
             </span>
           </button>
           <button
@@ -1238,7 +1329,7 @@ const ContentApprovalModal: React.FC<ContentApprovalModalProps> = ({
         
         {approvedCount === 0 && (
           <p className="text-sm text-gray-500 text-center mt-3">
-            Please approve at least one {contentType === 'posting' ? 'post' : 'reply'} before scheduling
+            Please approve at least one {contentType === 'posting' ? 'post' : 'reply'} before {contentType === 'posting' ? 'scheduling' : 'posting'}
           </p>
         )}
       </div>
@@ -1345,7 +1436,7 @@ const JobCard: React.FC<JobCardProps> = ({
             <p className="text-sm text-gray-600">
               {job.type === 'posting' 
                 ? `${job.settings?.postsPerDay || 12} posts/day` 
-                : `Monitoring ${job.settings?.keywords?.length || 0} keywords`
+                : `${job.settings?.maxRepliesPerHour || 10} replies max`
               }
             </p>
           </div>
@@ -1417,129 +1508,6 @@ const JobCard: React.FC<JobCardProps> = ({
             <span className="text-gray-500">Success Rate:</span>
             <p className="font-medium">{job.stats.successRate}%</p>
           </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Replying Settings Component
-const ReplyingSettings: React.FC<{ settings: any; onChange: (settings: any) => void }> = ({
-  settings,
-  onChange
-}) => {
-  const [newKeyword, setNewKeyword] = useState('');
-
-  const addKeyword = () => {
-    if (newKeyword.trim() && !settings.keywords.includes(newKeyword.trim())) {
-      onChange({
-        ...settings,
-        keywords: [...settings.keywords, newKeyword.trim()]
-      });
-      setNewKeyword('');
-    }
-  };
-
-  const removeKeyword = (keyword: string) => {
-    onChange({
-      ...settings,
-      keywords: settings.keywords.filter((k: string) => k !== keyword)
-    });
-  };
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Keywords to Monitor
-        </label>
-        <div className="flex flex-wrap gap-2 mb-3">
-          {settings.keywords.map((keyword: string, index: number) => (
-            <span
-              key={index}
-              className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-50 text-blue-700"
-            >
-              {keyword}
-              <button
-                type="button"
-                onClick={() => removeKeyword(keyword)}
-                className="ml-2 hover:text-red-500"
-              >
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
-        <div className="flex space-x-2">
-          <input
-            type="text"
-            value={newKeyword}
-            onChange={(e) => setNewKeyword(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && addKeyword()}
-            placeholder="Add keyword..."
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            type="button"
-            onClick={addKeyword}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Add
-          </button>
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Max Replies per Hour: {settings.maxRepliesPerHour}
-        </label>
-        <input
-          type="range"
-          min="1"
-          max="30"
-          value={settings.maxRepliesPerHour}
-          onChange={(e) => onChange({
-            ...settings,
-            maxRepliesPerHour: parseInt(e.target.value)
-          })}
-          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-        />
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
-          <span>1</span>
-          <span>15</span>
-          <span>30</span>
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-3">
-          Reply Types
-        </label>
-        <div className="space-y-2">
-          {Object.entries(settings.replyTypes).map(([type, enabled]) => (
-            <label key={type} className="flex items-center justify-between">
-              <div>
-                <span className="text-sm text-gray-700 capitalize">{type}</span>
-                <p className="text-xs text-gray-500">
-                  {type === 'helpful' && 'Provide helpful information and tips'}
-                  {type === 'engaging' && 'Ask questions and start conversations'}
-                  {type === 'promotional' && 'Subtly promote your content'}
-                </p>
-              </div>
-              <input
-                type="checkbox"
-                checked={enabled as boolean}
-                onChange={(e) => onChange({
-                  ...settings,
-                  replyTypes: {
-                    ...settings.replyTypes,
-                    [type]: e.target.checked
-                  }
-                })}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-              />
-            </label>
-          ))}
         </div>
       </div>
     </div>
