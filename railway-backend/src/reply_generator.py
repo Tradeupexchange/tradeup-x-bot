@@ -23,7 +23,7 @@ from src.twitter_poster import post_reply_tweet
 
 # Try to import LLM Manager with error handling
 try:
-    from src.llm_manager import llm_manager
+    from llm_manager import llm_manager
     LLM_MANAGER_AVAILABLE = True
     logging.info("✅ Successfully imported LLM Manager")
 except ImportError as e:

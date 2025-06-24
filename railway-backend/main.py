@@ -41,29 +41,49 @@ def setup_reply_functions():
     global generate_reply
     
     try:
-        # Add current directory to path
+        # Add both current directory and src directory to path
         current_dir = os.path.dirname(os.path.abspath(__file__))
+        src_dir = os.path.join(current_dir, 'src')
+        
+        # Add paths if they exist and aren't already added
         if current_dir not in sys.path:
             sys.path.insert(0, current_dir)
+        if os.path.exists(src_dir) and src_dir not in sys.path:
+            sys.path.insert(0, src_dir)
+        
+        logger.info(f"📁 Added to Python path: {current_dir}")
+        logger.info(f"📁 Added to Python path: {src_dir}")
         
         # Try to import the actual reply generator
         from src.reply_generator import generate_reply as actual_generate_reply
         generate_reply = actual_generate_reply
         logger.info("✅ Successfully imported actual LLM reply generator")
         
-        # Quick test
+        # Test it to make sure it works
         test_result = generate_reply("test tweet", "test_user")
-        logger.info(f"✅ LLM test successful: {str(test_result)[:50]}...")
         
-        return True
+        # Check if it's actually generating custom responses
+        is_dummy = (
+            isinstance(test_result, dict) and 
+            test_result.get("content", "").startswith("Thanks for sharing! Great point about Pokemon TCG")
+        )
+        
+        if is_dummy:
+            logger.warning("⚠️ LLM imported but returning dummy responses")
+            return False
+        else:
+            logger.info(f"✅ LLM generating custom responses: {str(test_result)[:50]}...")
+            return True
         
     except ImportError as e:
-        logger.warning(f"⚠️ Could not import reply_generator: {e}")
-        logger.info("🔄 Using dummy reply function")
+        logger.error(f"❌ Import error: {e}")
+        logger.error("🔍 This is likely because:")
+        logger.error("   - llm_manager.py import path is wrong in reply_generator.py")
+        logger.error("   - Missing dependencies (openai, etc.)")
+        logger.error("   - Configuration issues")
         return False
     except Exception as e:
         logger.error(f"❌ Error testing reply generator: {e}")
-        logger.info("🔄 Using dummy reply function")
         return False
 
 # Dummy reply function for now
@@ -202,12 +222,26 @@ async def test_reply_generation():
             test_result.get("content", "").startswith("Thanks for sharing! Great Pokemon TCG content")
         )
         
+        # Check what files exist for debugging
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        src_dir = os.path.join(current_dir, 'src')
+        
+        file_check = {
+            "current_dir": current_dir,
+            "src_dir_exists": os.path.exists(src_dir),
+            "reply_generator_exists": os.path.exists(os.path.join(current_dir, 'src', 'reply_generator.py')),
+            "direct_reply_generator_exists": os.path.exists(os.path.join(current_dir, 'reply_generator.py')),
+            "sys_path_includes_current": current_dir in sys.path,
+            "sys_path_includes_src": src_dir in sys.path if os.path.exists(src_dir) else False
+        }
+        
         return {
             "success": True,
             "using_real_llm": not is_dummy,
             "test_input": test_tweet,
             "test_output": test_result,
             "setup_success": reply_setup_success,
+            "file_check": file_check,
             "timestamp": datetime.now().isoformat()
         }
         
