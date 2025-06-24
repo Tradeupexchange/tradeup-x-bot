@@ -509,6 +509,18 @@ const BotControl: React.FC = () => {
               })
             });
 
+            console.log('🔍 FULL POST RESULT:', postResult);
+            console.log('🔍 POST RESULT SUCCESS:', postResult.success);
+            console.log('🔍 POST RESULT TYPE:', typeof postResult.success);
+
+            if (postResult.success) {
+              successCount++;
+              console.log('✅ Success! Count is now:', successCount);
+            } else {
+              console.log('❌ postResult.success was false/undefined');
+              console.log('🔍 Actual value:', postResult.success);
+}
+
             if (postResult.success) {
               successCount++;
               results.push({
