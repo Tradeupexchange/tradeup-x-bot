@@ -74,7 +74,12 @@ interface PostedReply {
   postedAt: string;
 }
 
-const BotControl: React.FC = () => {
+interface BotControlProps {
+  onPostSuccess?: () => void;
+  onJobCreated?: () => void;
+}
+
+const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) => {
   // Use the centralized useApi hook
   const { data: status, loading, error, lastFetch, refetch } = useApi<BotStatus>('/api/bot-status');
   
@@ -502,11 +507,11 @@ const BotControl: React.FC = () => {
       console.log(`📅 Processing approved ${currentJobType}...`, approvedItems);
 
       if (currentJobType === 'replying') {
-        // For replies, post them immediately instead of scheduling
+        // For replies, post them immediately and collect results
         console.log('🚀 Posting replies immediately...');
         
         let successCount = 0;
-        const results = [];
+        const postedRepliesData: PostedReply[] = [];
 
         for (const reply of approvedItems) {
           try {
@@ -517,61 +522,60 @@ const BotControl: React.FC = () => {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 content: reply.content,
-                reply_to_tweet_id: reply.tweetId
+                reply_to_tweet_id: reply.tweetId,
+                original_tweet_author: reply.tweetAuthor,
+                original_tweet_content: reply.originalTweet
               })
             });
 
             console.log('🔍 FULL POST RESULT:', postResult);
-          console.log('🔍 POST RESULT SUCCESS:', postResult.success);
-          console.log('🔍 POST RESULT TYPE:', typeof postResult.success);
-
-          if (postResult.success) {
-            successCount++;
-            console.log('✅ Success! Count is now:', successCount);
-          } else {
-            console.log('❌ postResult.success was false/undefined');
-            console.log('🔍 Actual value:', postResult.success);
-}
+            console.log('🔍 POST RESULT SUCCESS:', postResult.success);
+            console.log('🔍 POST RESULT TYPE:', typeof postResult.success);
 
             if (postResult.success) {
               successCount++;
-              results.push({
-                ...reply,
-                posted: true,
-                postedAt: new Date().toISOString(),
-                replyUrl: `https://twitter.com/TradeUpApp/status/${postResult.tweet_id}`,
-                originalTweetUrl: reply.originalTweetUrl || `https://twitter.com/${reply.tweetAuthor}/status/${reply.tweetId}`
+              console.log('✅ Success! Count is now:', successCount);
+              
+              // Collect posted reply data for UI display
+              postedRepliesData.push({
+                id: postResult.tweet_id || `reply_${Date.now()}_${successCount}`,
+                content: reply.content,
+                originalTweet: reply.originalTweet || '',
+                tweetAuthor: reply.tweetAuthor || '',
+                replyUrl: postResult.tweet_url || `https://twitter.com/TradeUpApp/status/${postResult.tweet_id}`,
+                originalTweetUrl: reply.originalTweetUrl || `https://twitter.com/${reply.tweetAuthor}/status/${reply.tweetId}`,
+                postedAt: new Date().toISOString()
               });
+              
               console.log(`✅ Successfully posted reply to @${reply.tweetAuthor}`);
             } else {
+              console.log('❌ postResult.success was false/undefined');
+              console.log('🔍 Actual value:', postResult.success);
               console.error(`❌ Failed to post reply to @${reply.tweetAuthor}:`, postResult.error);
-              results.push({
-                ...reply,
-                posted: false,
-                error: postResult.error
-              });
             }
           } catch (error) {
             console.error(`❌ Error posting reply to @${reply.tweetAuthor}:`, error);
-            results.push({
-              ...reply,
-              posted: false,
-              error: error instanceof Error ? error.message : 'Unknown error'
-            });
           }
         }
 
-        // Show success message
+        // Update UI to show posted replies instead of popup
         if (successCount > 0) {
-          alert(`Successfully posted ${successCount} out of ${approvedItems.length} replies! Check the Recent Posts section to see them.`);
+          setPostedReplies(postedRepliesData);
+          setShowPostedReplies(true);
+          
+          // Call the refresh callback after successful posts
+          if (onPostSuccess) {
+            console.log('🔄 BotControl: Triggering post refresh after replies...');
+            setTimeout(() => {
+              onPostSuccess();
+            }, 2000);
+          }
         } else {
-          alert('No replies were successfully posted. Please check your Twitter API connection.');
+          setApiError('No replies were successfully posted. Please check your Twitter API connection.');
         }
 
-        // Close the modal and refresh
         setShowContentApproval(false);
         setGeneratedContent([]);
-        refetch(); // Refresh to show new posts in Recent Posts section
 
       } else {
         // For posts, use the original scheduling logic
@@ -650,6 +654,11 @@ const BotControl: React.FC = () => {
         refetch();
         setShowScheduler(false);
         alert(`${type} job created successfully!`);
+        
+        // Call the job created callback
+        if (onJobCreated) {
+          onJobCreated();
+        }
       } else {
         throw new Error(result.error || 'Job creation failed');
       }
@@ -660,6 +669,109 @@ const BotControl: React.FC = () => {
     } finally {
       setActionLoading(null);
     }
+  };
+
+  // Posted Replies Modal Component
+  const PostedRepliesModal: React.FC<{
+    replies: PostedReply[];
+    onClose: () => void;
+  }> = ({ replies, onClose }) => {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[70]">
+        <div className="bg-white rounded-xl max-w-4xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-gray-900">
+                Successfully Posted {replies.length} Replies
+              </h3>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mt-2">
+              Your replies have been posted to Twitter. Click the links below to view them.
+            </p>
+          </div>
+
+          <div className="p-6 space-y-6">
+            {replies.map((reply, index) => (
+              <div key={reply.id} className="border-l-4 border-green-500 bg-green-50 rounded-lg p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <span className="bg-green-100 text-green-800 px-2 py-1 text-xs font-medium rounded-full">
+                      Reply #{index + 1}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {new Date(reply.postedAt).toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <div className="flex space-x-2">
+                    <a
+                      href={reply.originalTweetUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:text-blue-800 underline flex items-center space-x-1"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      <span>Original Tweet</span>
+                    </a>
+                    <a
+                      href={reply.replyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-green-600 hover:text-green-800 underline flex items-center space-x-1 font-medium"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      <span>View Reply</span>
+                    </a>
+                  </div>
+                </div>
+
+                {/* Original Tweet Context */}
+                <div className="mb-3 p-3 bg-gray-100 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-1">
+                    Original tweet from @{reply.tweetAuthor}:
+                  </p>
+                  <p className="text-sm text-gray-800 italic">
+                    "{reply.originalTweet}"
+                  </p>
+                </div>
+
+                {/* Your Reply */}
+                <div className="mb-3">
+                  <p className="text-sm text-gray-600 mb-1 font-medium">Your reply:</p>
+                  <p className="text-gray-900 leading-relaxed font-medium">
+                    {reply.content}
+                  </p>
+                </div>
+
+                {/* Status */}
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-xs text-green-800 font-medium">
+                    Successfully posted to Twitter
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="p-6 border-t border-gray-200 bg-gray-50">
+            <div className="flex justify-between items-center">
+              <div className="text-sm text-gray-600">
+                All replies have been posted and will appear in your Recent Posts section.
+              </div>
+              <button
+                onClick={onClose}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (loading && !status) {
@@ -808,6 +920,17 @@ const BotControl: React.FC = () => {
             loading={actionLoading}
           />
         </div>
+      )}
+
+      {/* Posted Replies Display Modal */}
+      {showPostedReplies && (
+        <PostedRepliesModal
+          replies={postedReplies}
+          onClose={() => {
+            setShowPostedReplies(false);
+            setPostedReplies([]);
+          }}
+        />
       )}
     </div>
   );
@@ -1223,108 +1346,6 @@ interface ContentApprovalModalProps {
   loading: string | null;
 }
 
-const PostedRepliesModal: React.FC<{
-  replies: PostedReply[];
-  onClose: () => void;
-}> = ({ replies, onClose }) => {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[70]">
-      <div className="bg-white rounded-xl max-w-4xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-gray-900">
-              Successfully Posted {replies.length} Replies
-            </h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          <p className="text-sm text-gray-600 mt-2">
-            Your replies have been posted to Twitter. Click the links below to view them.
-          </p>
-        </div>
-
-        <div className="p-6 space-y-6">
-          {replies.map((reply, index) => (
-            <div key={reply.id} className="border-l-4 border-green-500 bg-green-50 rounded-lg p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center space-x-2">
-                  <span className="bg-green-100 text-green-800 px-2 py-1 text-xs font-medium rounded-full">
-                    Reply #{index + 1}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {new Date(reply.postedAt).toLocaleTimeString()}
-                  </span>
-                </div>
-                <div className="flex space-x-2">
-                  <a
-                    href={reply.originalTweetUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-blue-600 hover:text-blue-800 underline flex items-center space-x-1"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    <span>Original Tweet</span>
-                  </a>
-                  <a
-                    href={reply.replyUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-green-600 hover:text-green-800 underline flex items-center space-x-1 font-medium"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    <span>View Reply</span>
-                  </a>
-                </div>
-              </div>
-
-              {/* Original Tweet Context */}
-              <div className="mb-3 p-3 bg-gray-100 rounded-lg">
-                <p className="text-sm text-gray-600 mb-1">
-                  Original tweet from @{reply.tweetAuthor}:
-                </p>
-                <p className="text-sm text-gray-800 italic">
-                  "{reply.originalTweet}"
-                </p>
-              </div>
-
-              {/* Your Reply */}
-              <div className="mb-3">
-                <p className="text-sm text-gray-600 mb-1 font-medium">Your reply:</p>
-                <p className="text-gray-900 leading-relaxed font-medium">
-                  {reply.content}
-                </p>
-              </div>
-
-              {/* Status */}
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-xs text-green-800 font-medium">
-                  Successfully posted to Twitter
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="p-6 border-t border-gray-200 bg-gray-50">
-          <div className="flex justify-between items-center">
-            <div className="text-sm text-gray-600">
-              All replies have been posted and will appear in your Recent Posts section.
-            </div>
-            <button
-              onClick={onClose}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const ContentApprovalModal: React.FC<ContentApprovalModalProps> = ({
   content,
   contentType,
@@ -1579,16 +1600,6 @@ const ContentApprovalModal: React.FC<ContentApprovalModalProps> = ({
     </div>
   );
 };
-
-{showPostedReplies && (
-  <PostedRepliesModal
-    replies={postedReplies}
-    onClose={() => {
-      setShowPostedReplies(false);
-      setPostedReplies([]);
-    }}
-  />
-)}
 
 // Job Card Component
 interface JobCardProps {
