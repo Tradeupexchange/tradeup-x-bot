@@ -270,63 +270,492 @@ async def get_topics():
 
 #RECENT POSTS STORAGE
 
-# In-memory storage for recent posts (in production, use a database)
-recent_posts_storage = []
+# Job storage and management
+active_jobs = {}  # In production, use a database
+job_threads = {}  # Track running job threads
 
-def add_to_recent_posts(post_data: Dict[str, Any]):
-    """Add a new post to the recent posts storage"""
-    global recent_posts_storage
-    
-    # Create post object
-    post = {
-        "id": post_data.get("tweet_id", f"post_{int(time.time())}"),
-        "content": post_data.get("content", ""),
-        "type": post_data.get("type", "post"),  # "post" or "reply"
-        "engagement": {
-            "likes": 0,
-            "retweets": 0,
-            "replies": 0
-        },
-        "timestamp": post_data.get("posted_at", datetime.now().isoformat()),
-        "topics": post_data.get("topics", []),
-        "tweet_url": post_data.get("tweet_url", ""),
-        "tweet_id": post_data.get("tweet_id", "")
-    }
-    
-    # Add reply-specific data if it's a reply
-    if post_data.get("type") == "reply" and post_data.get("replied_to"):
-        post["replied_to"] = {
-            "tweet_id": post_data["replied_to"].get("tweet_id", ""),
-            "author": post_data["replied_to"].get("author", ""),
-            "content": post_data["replied_to"].get("content", ""),
-            "url": post_data["replied_to"].get("url", "")
+class JobManager:
+    def __init__(self):
+        self.jobs = {}
+        self.running_threads = {}
+        
+    def create_job(self, job_id: str, job_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new job"""
+        settings = job_data.get("settings", {})
+        approved_content = settings.get("approvedContent", [])
+        
+        job = {
+            "id": job_id,
+            "name": job_data.get("name", f"Job {job_id}"),
+            "type": job_data.get("type", "posting"),
+            "status": "stopped",
+            "settings": settings,
+            "createdAt": datetime.now().isoformat(),
+            "lastRun": None,
+            "nextRun": None,
+            "stats": {
+                "postsToday": 0,
+                "repliesToday": 0,
+                "successRate": 100
+            },
+            "approved_content": approved_content  # Store approved content at job level
         }
+        
+        self.jobs[job_id] = job
+        logger.info(f"✅ Created job: {job_id} - {job['name']} with {len(approved_content)} content items")
+        return job
     
-    # Add to beginning of list (most recent first)
-    recent_posts_storage.insert(0, post)
+    def start_job(self, job_id: str) -> bool:
+        """Start a job"""
+        if job_id not in self.jobs:
+            return False
+            
+        job = self.jobs[job_id]
+        if job["status"] == "running":
+            return True
+            
+        job["status"] = "running"
+        job["lastRun"] = datetime.now().isoformat()
+        
+        # Start the job in a separate thread
+        if job["type"] == "posting":
+            thread = threading.Thread(target=self._run_posting_job, args=(job_id,))
+        elif job["type"] == "replying":
+            thread = threading.Thread(target=self._run_replying_job, args=(job_id,))
+        else:
+            return False
+            
+        thread.daemon = True
+        thread.start()
+        self.running_threads[job_id] = thread
+        
+        logger.info(f"▶️ Started job: {job_id}")
+        return True
     
-    # Keep only the most recent 50 posts
-    if len(recent_posts_storage) > 50:
-        recent_posts_storage = recent_posts_storage[:50]
+    def stop_job(self, job_id: str) -> bool:
+        """Stop a job"""
+        if job_id not in self.jobs:
+            return False
+            
+        self.jobs[job_id]["status"] = "stopped"
+        
+        # The thread will check the status and stop itself
+        if job_id in self.running_threads:
+            # Don't force kill threads, let them finish gracefully
+            logger.info(f"⏹️ Stopping job: {job_id}")
+            
+        return True
     
-    logger.info(f"✅ Added post to recent posts: {post['id']}")
+    def pause_job(self, job_id: str) -> bool:
+        """Pause a job"""
+        if job_id not in self.jobs:
+            return False
+            
+        self.jobs[job_id]["status"] = "paused"
+        logger.info(f"⏸️ Paused job: {job_id}")
+        return True
+    
+    def rename_job(self, job_id: str, new_name: str) -> bool:
+        """Rename a job"""
+        if job_id not in self.jobs:
+            return False
+            
+        self.jobs[job_id]["name"] = new_name
+        logger.info(f"✏️ Renamed job {job_id} to: {new_name}")
+        return True
+    
+    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Get a specific job"""
+        return self.jobs.get(job_id)
+    
+    def get_all_jobs(self) -> List[Dict[str, Any]]:
+        """Get all jobs"""
+        return list(self.jobs.values())
+    
+    def _run_posting_job(self, job_id: str):
+        """Run a posting job in the background"""
+        job = self.jobs[job_id]
+        approved_content = job.get("approved_content", [])
+        
+        logger.info(f"🚀 Starting posting job {job_id} with {len(approved_content)} posts")
+        
+        if len(approved_content) == 0:
+            logger.warning(f"⚠️ Job {job_id} has no approved content to post!")
+            self.jobs[job_id]["status"] = "stopped"
+            return
+        
+        for i, content_item in enumerate(approved_content):
+            # Check if job should continue running
+            if self.jobs[job_id]["status"] != "running":
+                logger.info(f"⏹️ Job {job_id} stopped, exiting")
+                break
+                
+            try:
+                content_text = content_item.get("content", "")
+                logger.info(f"📝 Posting content {i+1}/{len(approved_content)}: {content_text[:50]}...")
+                
+                # Check if we have Twitter posting available
+                if not TWITTER_POSTER_AVAILABLE:
+                    logger.warning("🔄 Twitter poster not available, using simulation")
+                    # Simulate posting
+                    mock_tweet_id = f"sim_job_tweet_{int(time.time())}_{i}"
+                    tweet_url = f"https://twitter.com/TradeUpApp/status/{mock_tweet_id}"
+                    
+                    # Add to recent posts even if simulated
+                    add_to_recent_posts({
+                        "tweet_id": mock_tweet_id,
+                        "content": content_text,
+                        "type": "post",
+                        "tweet_url": tweet_url,
+                        "topics": content_item.get("topics", []),
+                        "posted_at": datetime.now().isoformat()
+                    })
+                    
+                    logger.info(f"✅ Simulated posting content {i+1}")
+                else:
+                    # Post the content using real API
+                    result = post_original_tweet(content_text)
+                    
+                    if result.get("success"):
+                        # Add to recent posts
+                        add_to_recent_posts({
+                            "tweet_id": result.get("tweet_id"),
+                            "content": content_text,
+                            "type": "post",
+                            "tweet_url": f"https://twitter.com/TradeUpApp/status/{result.get('tweet_id')}",
+                            "topics": content_item.get("topics", []),
+                            "posted_at": datetime.now().isoformat()
+                        })
+                        
+                        logger.info(f"✅ Successfully posted content {i+1}")
+                    else:
+                        logger.error(f"❌ Failed to post content {i+1}: {result.get('error')}")
+                
+                # Update job stats
+                self.jobs[job_id]["stats"]["postsToday"] += 1
+                self.jobs[job_id]["lastRun"] = datetime.now().isoformat()
+                
+                # Wait between posts (avoid rate limiting)
+                if i < len(approved_content) - 1:  # Don't wait after the last post
+                    logger.info("⏰ Waiting 65 seconds between posts...")
+                    time.sleep(65)
+                    
+            except Exception as e:
+                logger.error(f"❌ Error posting content {i+1}: {e}")
+        
+        # Job completed
+        self.jobs[job_id]["status"] = "stopped"
+        logger.info(f"🏁 Posting job {job_id} completed")
+    
+    def _run_replying_job(self, job_id: str):
+        """Run a replying job in the background"""
+        job = self.jobs[job_id]
+        approved_content = job.get("approved_content", [])
+        
+        logger.info(f"🚀 Starting replying job {job_id} with {len(approved_content)} replies")
+        
+        for i, reply_item in enumerate(approved_content):
+            # Check if job should continue running
+            if self.jobs[job_id]["status"] != "running":
+                logger.info(f"⏹️ Job {job_id} stopped, exiting")
+                break
+                
+            try:
+                logger.info(f"💬 Posting reply {i+1}/{len(approved_content)}")
+                
+                # Post the reply
+                result = post_reply_tweet(
+                    reply_item.get("content", ""), 
+                    reply_item.get("tweetId", "")
+                )
+                
+                if result.get("success"):
+                    # Add to recent posts
+                    add_to_recent_posts({
+                        "tweet_id": result.get("tweet_id"),
+                        "content": reply_item.get("content", ""),
+                        "type": "reply",
+                        "tweet_url": f"https://twitter.com/TradeUpApp/status/{result.get('tweet_id')}",
+                        "posted_at": datetime.now().isoformat(),
+                        "replied_to": {
+                            "tweet_id": reply_item.get("tweetId", ""),
+                            "author": reply_item.get("tweetAuthor", ""),
+                            "content": reply_item.get("originalTweet", ""),
+                            "url": f"https://twitter.com/{reply_item.get('tweetAuthor', '')}/status/{reply_item.get('tweetId', '')}"
+                        }
+                    })
+                    
+                    # Update job stats
+                    self.jobs[job_id]["stats"]["repliesToday"] += 1
+                    self.jobs[job_id]["lastRun"] = datetime.now().isoformat()
+                    
+                    logger.info(f"✅ Successfully posted reply {i+1}")
+                else:
+                    logger.error(f"❌ Failed to post reply {i+1}: {result.get('error')}")
+                
+                # Wait between replies (avoid rate limiting)
+                if i < len(approved_content) - 1:  # Don't wait after the last reply
+                    logger.info("⏰ Waiting 65 seconds between replies...")
+                    time.sleep(65)
+                    
+            except Exception as e:
+                logger.error(f"❌ Error posting reply {i+1}: {e}")
+        
+        # Job completed
+        self.jobs[job_id]["status"] = "stopped"
+        logger.info(f"🏁 Replying job {job_id} completed")
 
-# GET endpoint to fetch recent posts
-@app.get("/api/recent-posts")
-async def get_recent_posts():
-    """Get recent posts and replies"""
+# Create global job manager instance
+job_manager = JobManager()
+
+# Update your bot-status endpoint to include real jobs
+@app.get("/api/bot-status")
+async def get_bot_status():
+    """Get current bot status including active jobs"""
     try:
-        logger.info("📋 Fetching recent posts...")
+        jobs = job_manager.get_all_jobs()
+        
+        # Calculate total stats
+        total_posts_today = sum(job["stats"]["postsToday"] for job in jobs)
+        total_replies_today = sum(job["stats"]["repliesToday"] for job in jobs)
         
         return {
-            "success": True,
-            "posts": recent_posts_storage,
-            "count": len(recent_posts_storage),
+            "running": any(job["status"] == "running" for job in jobs),
+            "uptime": None,
+            "lastRun": max([job["lastRun"] for job in jobs if job["lastRun"]], default=None),
+            "stats": {
+                "postsToday": total_posts_today,
+                "repliesToday": total_replies_today,
+                "successRate": 95  # You can calculate this based on actual success/failure rates
+            },
+            "jobs": jobs,
             "timestamp": datetime.now().isoformat()
         }
         
     except Exception as e:
-        logger.error(f"❌ Error fetching recent posts: {e}")
+        logger.error(f"❌ Error getting bot status: {e}")
+        return {
+            "running": False,
+            "uptime": None,
+            "lastRun": None,
+            "stats": {"postsToday": 0, "repliesToday": 0, "successRate": 0},
+            "jobs": [],
+            "timestamp": datetime.now().isoformat()
+        }
+
+# Update your job management endpoints to use the real job manager
+@app.post("/api/bot-job/{job_id}/start")
+async def start_bot_job(job_id: str):
+    """Start a bot job"""
+    try:
+        success = job_manager.start_job(job_id)
+        
+        if success:
+            job = job_manager.get_job(job_id)
+            return {
+                "success": True,
+                "message": f"Job {job_id} started successfully",
+                "job_id": job_id,
+                "status": job["status"] if job else "running",
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Job {job_id} not found or already running",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+    except Exception as e:
+        logger.error(f"❌ Error starting job {job_id}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.post("/api/bot-job/{job_id}/stop")
+async def stop_bot_job(job_id: str):
+    """Stop a bot job"""
+    try:
+        success = job_manager.stop_job(job_id)
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"Job {job_id} stopped successfully",
+                "job_id": job_id,
+                "status": "stopped",
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Job {job_id} not found",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+    except Exception as e:
+        logger.error(f"❌ Error stopping job {job_id}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.post("/api/bot-job/{job_id}/pause")
+async def pause_bot_job(job_id: str):
+    """Pause a bot job"""
+    try:
+        success = job_manager.pause_job(job_id)
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"Job {job_id} paused successfully", 
+                "job_id": job_id,
+                "status": "paused",
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Job {job_id} not found",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+    except Exception as e:
+        logger.error(f"❌ Error pausing job {job_id}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.post("/api/bot-job/{job_id}/rename")
+async def rename_bot_job(job_id: str, request: Dict[str, Any]):
+    """Rename a bot job"""
+    try:
+        new_name = request.get("name", "")
+        
+        if not new_name:
+            return {
+                "success": False,
+                "error": "Missing new name",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        success = job_manager.rename_job(job_id, new_name)
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"Job {job_id} renamed to '{new_name}' successfully",
+                "job_id": job_id,
+                "new_name": new_name,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Job {job_id} not found",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+    except Exception as e:
+        logger.error(f"❌ Error renaming job {job_id}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.post("/api/bot-job/create-posting-job")
+async def create_posting_job(request: Dict[str, Any]):
+    """Create a new posting job"""
+    try:
+        job_type = request.get("type", "posting")
+        job_name = request.get("name", "Untitled Job")
+        settings = request.get("settings", {})
+        
+        logger.info(f"➕ Creating new posting job: {job_name}")
+        logger.info(f"📊 Settings received: {settings}")
+        
+        # Generate unique job ID
+        job_id = f"posting_job_{int(time.time())}"
+        
+        # Extract approved content from settings
+        approved_content = settings.get("approvedContent", [])
+        logger.info(f"📝 Job will post {len(approved_content)} approved items")
+        
+        # Create the job with the approved content
+        job = job_manager.create_job(job_id, {
+            "type": job_type,
+            "name": job_name,
+            "settings": {
+                **settings,
+                "approvedContent": approved_content  # Ensure this is preserved
+            }
+        })
+        
+        logger.info(f"✅ Job created with ID: {job_id}")
+        
+        return {
+            "success": True,
+            "message": f"Posting job '{job_name}' created successfully",
+            "job_id": job_id,
+            "job_name": job_name,
+            "job_type": job_type,
+            "content_count": len(approved_content),
+            "settings": settings,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error creating posting job: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.post("/api/bot-job/create-reply-job")
+async def create_reply_job(request: Dict[str, Any]):
+    """Create a new reply job"""
+    try:
+        job_type = request.get("type", "replying")
+        job_name = request.get("name", "Untitled Reply Job")
+        settings = request.get("settings", {})
+        max_replies_per_hour = request.get("maxRepliesPerHour", 10)
+        
+        logger.info(f"➕ Creating new reply job: {job_name}")
+        
+        # Generate unique job ID
+        job_id = f"reply_job_{int(time.time())}"
+        
+        # Create the job
+        job = job_manager.create_job(job_id, {
+            "type": job_type,
+            "name": job_name,
+            "settings": {
+                **settings,
+                "maxRepliesPerHour": max_replies_per_hour
+            }
+        })
+        
+        return {
+            "success": True,
+            "message": f"Reply job '{job_name}' created successfully",
+            "job_id": job_id,
+            "job_name": job_name,
+            "job_type": job_type,
+            "max_replies_per_hour": max_replies_per_hour,
+            "settings": settings,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error creating reply job: {e}")
         return {
             "success": False,
             "error": str(e),
@@ -336,8 +765,8 @@ async def get_recent_posts():
 
 #END RECENT POSTS STORAGE
 
-#POSTING FUNCTIONS
 
+#POSTING FUNCTIONS
 # Add these endpoints to your main.py for original tweet posting:
 
 @app.post("/api/post-original-tweet")

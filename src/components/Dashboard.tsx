@@ -56,6 +56,13 @@ const Dashboard: React.FC = () => {
     refetchPosts();
   };
 
+  // Function to refresh bot status/jobs (called after job operations)
+  const handleRefreshJobs = () => {
+    console.log('🔄 Dashboard: Refreshing bot status and jobs...');
+    // Trigger a refresh of bot status which will update the jobs list
+    window.location.reload(); // Temporary solution - you can make this more elegant later
+  };
+
   // Log recent posts data when it changes
   useEffect(() => {
     if (recentPostsData?.posts) {
@@ -80,7 +87,7 @@ const Dashboard: React.FC = () => {
       
       {/* Bot Control Center - full width */}
       <div className="bg-white border-2 border-gray-400 rounded-xl shadow-lg p-6">
-        <BotControl onPostSuccess={handleRefreshPosts} />
+        <BotControl onPostSuccess={handleRefreshPosts} onJobCreated={handleRefreshJobs} />
       </div>
       
       {/* Recent Posts - full width */}
@@ -109,4 +116,4 @@ const Dashboard: React.FC = () => {
   );
 };
 
-export default Dashboard;
+export default Dashboard
