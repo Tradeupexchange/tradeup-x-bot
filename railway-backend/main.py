@@ -185,6 +185,30 @@ class GenerateContentRequest(BaseModel):
     style: Optional[str] = "engaging"
     include_hashtags: Optional[bool] = True
 
+class PostOriginalTweetRequest(BaseModel):
+    content: str
+
+class GenerateAndPostContentRequest(BaseModel):
+    topic: Optional[str] = "Pokemon TCG"
+    post_immediately: Optional[bool] = False
+    content_type: Optional[str] = "general"
+    include_hashtags: Optional[bool] = True
+
+class ScheduledContentItem(BaseModel):
+    content: str
+    scheduled_time: Optional[str] = None
+    topic: Optional[str] = None
+
+class PostScheduledContentRequest(BaseModel):
+    content_items: List[ScheduledContentItem]
+
+class ContentGenerationRequest(BaseModel):
+    topic: str
+    count: Optional[int] = 1
+    style: Optional[str] = "engaging"
+    include_hashtags: Optional[bool] = True
+    max_length: Optional[int] = 240  # Leave room for hashtags
+
 # Essential endpoints
 @app.get("/")
 async def root():
@@ -237,6 +261,587 @@ async def get_topics():
         {"id": "tournament_play", "name": "Tournament Play", "description": "Competitive Pokemon TCG content"}
     ]
     return {"success": True, "topics": topics, "total": len(topics)}
+
+
+#POSTING FUNCTIONS
+
+# Add these endpoints to your main.py for original tweet posting:
+
+@app.post("/api/post-original-tweet")
+async def post_original_tweet_endpoint(request: Dict[str, Any]):
+    """Post an original tweet to Twitter"""
+    try:
+        content = request.get("content", "")
+        
+        logger.info(f"📤 Attempting to post original tweet")
+        logger.info(f"📝 Tweet content: {content[:100]}...")
+        
+        if not TWITTER_POSTER_AVAILABLE or post_original_tweet is None:
+            logger.warning("🔄 Twitter poster not available, using simulation")
+            # Fallback to simulation
+            import time
+            mock_tweet_id = f"sim_tweet_{int(time.time())}"
+            
+            return {
+                "success": True,
+                "tweet_id": mock_tweet_id,
+                "message": "Tweet posted successfully (simulated - Twitter poster not available)",
+                "tweet_url": f"https://twitter.com/TradeUpApp/status/{mock_tweet_id}",
+                "content": content,
+                "simulated": True,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        if not content:
+            return {
+                "success": False,
+                "error": "Missing tweet content",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Use real Twitter API
+        logger.info("🐦 Using real Twitter API to post original tweet...")
+        result = post_original_tweet(content)
+        
+        logger.info(f"🔍 Twitter API result: {result}")
+        
+        if result.get("success"):
+            logger.info(f"✅ Successfully posted tweet with ID: {result.get('tweet_id')}")
+            
+            return {
+                "success": True,
+                "tweet_id": result.get("tweet_id"),
+                "message": "Tweet posted successfully to Twitter",
+                "tweet_url": result.get("url", f"https://twitter.com/TradeUpApp/status/{result.get('tweet_id')}"),
+                "content": content,
+                "posted_at": result.get("posted_at"),
+                "simulated": False,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            logger.error(f"❌ Failed to post tweet: {result.get('error')}")
+            
+            return {
+                "success": False,
+                "error": result.get("error", "Unknown Twitter API error"),
+                "rate_limited": result.get("rate_limited", False),
+                "timestamp": datetime.now().isoformat()
+            }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in post_original_tweet_endpoint: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.post("/api/generate-and-post-content")
+async def generate_and_post_content(request: Dict[str, Any]):
+    """Generate content using LLM and optionally post to Twitter"""
+    try:
+        topic = request.get("topic", "Pokemon TCG")
+        post_immediately = request.get("post_immediately", False)
+        content_type = request.get("content_type", "general")
+        
+        logger.info(f"📝 Generating content for topic: {topic}")
+        logger.info(f"🚀 Post immediately: {post_immediately}")
+        
+        # Generate content using your existing content generation
+        content_result = await generate_content_endpoint(GenerateContentRequest(
+            topic=topic,
+            style="engaging",
+            include_hashtags=True
+        ))
+        
+        if not content_result.get("success"):
+            return {
+                "success": False,
+                "error": "Failed to generate content",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        generated_content = content_result["content"]["content"]
+        hashtags = content_result["content"].get("hashtags", [])
+        
+        # Add hashtags to content if they exist
+        if hashtags:
+            content_with_hashtags = f"{generated_content}\n\n{' '.join(hashtags)}"
+        else:
+            content_with_hashtags = generated_content
+        
+        response = {
+            "success": True,
+            "generated_content": generated_content,
+            "content_with_hashtags": content_with_hashtags,
+            "hashtags": hashtags,
+            "topic": topic,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Post immediately if requested
+        if post_immediately:
+            logger.info("🚀 Posting generated content immediately...")
+            
+            post_result = await post_original_tweet_endpoint({
+                "content": content_with_hashtags
+            })
+            
+            response["post_result"] = post_result
+            response["posted"] = post_result.get("success", False)
+            
+            if post_result.get("success"):
+                response["tweet_id"] = post_result.get("tweet_id")
+                response["tweet_url"] = post_result.get("tweet_url")
+                response["message"] = "Content generated and posted successfully"
+            else:
+                response["message"] = "Content generated but posting failed"
+                response["post_error"] = post_result.get("error")
+        else:
+            response["posted"] = False
+            response["message"] = "Content generated successfully (not posted)"
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"❌ Error in generate_and_post_content: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.post("/api/post-scheduled-content")
+async def post_scheduled_content(request: Dict[str, Any]):
+    """Post multiple pieces of scheduled content"""
+    try:
+        content_items = request.get("content_items", [])
+        
+        if not content_items:
+            return {
+                "success": False,
+                "error": "No content items provided",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        logger.info(f"📅 Posting {len(content_items)} scheduled content items...")
+        
+        results = []
+        success_count = 0
+        
+        for i, content_item in enumerate(content_items):
+            try:
+                content = content_item.get("content", "")
+                scheduled_time = content_item.get("scheduled_time", "")
+                
+                if not content:
+                    logger.warning(f"Skipping item {i+1}: missing content")
+                    results.append({
+                        "success": False,
+                        "error": "Missing content",
+                        "original_data": content_item
+                    })
+                    continue
+                
+                logger.info(f"📝 Posting content item {i+1}/{len(content_items)}")
+                logger.info(f"⏰ Scheduled for: {scheduled_time}")
+                
+                if TWITTER_POSTER_AVAILABLE:
+                    # Use real Twitter API
+                    result = post_original_tweet(content)
+                    
+                    if result.get("success"):
+                        success_count += 1
+                        results.append({
+                            "success": True,
+                            "tweet_id": result.get("tweet_id"),
+                            "tweet_url": result.get("url"),
+                            "content": content,
+                            "posted_at": result.get("posted_at"),
+                            "scheduled_time": scheduled_time
+                        })
+                        logger.info(f"✅ Successfully posted content item {i+1}")
+                    else:
+                        results.append({
+                            "success": False,
+                            "error": result.get("error"),
+                            "rate_limited": result.get("rate_limited", False),
+                            "content": content,
+                            "scheduled_time": scheduled_time
+                        })
+                        logger.error(f"❌ Failed to post content item {i+1}: {result.get('error')}")
+                else:
+                    # Simulation mode
+                    import time
+                    mock_id = f"sim_scheduled_tweet_{int(time.time())}_{i}"
+                    success_count += 1
+                    results.append({
+                        "success": True,
+                        "tweet_id": mock_id,
+                        "tweet_url": f"https://twitter.com/TradeUpApp/status/{mock_id}",
+                        "content": content,
+                        "scheduled_time": scheduled_time,
+                        "simulated": True
+                    })
+                    logger.info(f"✅ Simulated posting content item {i+1}")
+                
+                # Small delay between posts to avoid rate limits
+                if i < len(content_items) - 1:  # Don't sleep after the last one
+                    logger.info("⏰ Waiting 65 seconds between posts for rate limiting...")
+                    time.sleep(65)
+                    
+            except Exception as e:
+                logger.error(f"❌ Error posting content item {i+1}: {e}")
+                results.append({
+                    "success": False,
+                    "error": str(e),
+                    "original_data": content_item
+                })
+        
+        return {
+            "success": True,
+            "total_processed": len(content_items),
+            "successful_posts": success_count,
+            "failed_posts": len(content_items) - success_count,
+            "results": results,
+            "twitter_available": TWITTER_POSTER_AVAILABLE,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in post_scheduled_content: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.get("/api/content-topics")
+async def get_content_topics():
+    """Get available content topics for tweet generation"""
+    try:
+        topics = [
+            {
+                "id": "pokemon_tcg_general",
+                "name": "Pokemon TCG General",
+                "description": "General Pokemon TCG discussion and enthusiasm",
+                "examples": ["Card collecting tips", "Deck building basics", "Tournament experience"]
+            },
+            {
+                "id": "card_pulls",
+                "name": "Card Pulls & Openings",
+                "description": "Booster pack openings and rare card pulls",
+                "examples": ["Charizard pulls", "Alt art discoveries", "Booster box openings"]
+            },
+            {
+                "id": "market_analysis",
+                "name": "Market Analysis",
+                "description": "Pokemon card market trends and pricing",
+                "examples": ["Price predictions", "Market trends", "Investment insights"]
+            },
+            {
+                "id": "deck_building",
+                "name": "Deck Building",
+                "description": "Competitive deck strategies and builds",
+                "examples": ["Meta deck analysis", "Budget deck options", "Synergy combinations"]
+            },
+            {
+                "id": "tournaments",
+                "name": "Tournament Play",
+                "description": "Competitive Pokemon TCG tournament content",
+                "examples": ["Tournament prep", "Meta predictions", "Competition analysis"]
+            },
+            {
+                "id": "collecting",
+                "name": "Collecting & Grading",
+                "description": "Card collecting, grading, and preservation",
+                "examples": ["PSA grading tips", "Collection showcases", "Card condition guides"]
+            },
+            {
+                "id": "community",
+                "name": "Community & Culture",
+                "description": "Pokemon TCG community and culture topics",
+                "examples": ["Community events", "Collector stories", "Nostalgia posts"]
+            }
+        ]
+        
+        return {
+            "success": True,
+            "topics": topics,
+            "total": len(topics),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting content topics: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.get("/api/posting-queue")
+async def get_posting_queue():
+    """Get current posting queue and schedule"""
+    try:
+        # This would integrate with your job system
+        # For now, return empty queue
+        queue = []
+        
+        # Get posting stats
+        if TWITTER_POSTER_AVAILABLE and get_posting_stats:
+            stats = get_posting_stats()
+        else:
+            stats = {
+                "last_post_time": None,
+                "can_post_now": True,
+                "min_interval_seconds": 60
+            }
+        
+        return {
+            "success": True,
+            "queue": queue,
+            "stats": stats,
+            "can_post_now": stats.get("can_post_now", True),
+            "next_available_post_time": None,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting posting queue: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+# Update your existing generate-content endpoint to support immediate posting
+@app.post("/api/generate-content-enhanced")
+async def generate_content_enhanced(request: GenerateContentRequest):
+    """Enhanced content generation with posting option"""
+    try:
+        # Generate content using existing logic
+        content_result = await generate_content_endpoint(request)
+        
+        if not content_result.get("success"):
+            return content_result
+        
+        # Add posting capabilities to the response
+        generated_content = content_result["content"]["content"]
+        hashtags = content_result["content"].get("hashtags", [])
+        
+        # Create full content with hashtags
+        if hashtags:
+            full_content = f"{generated_content}\n\n{' '.join(hashtags)}"
+        else:
+            full_content = generated_content
+        
+        # Enhanced response with posting options
+        return {
+            "success": True,
+            "content": {
+                **content_result["content"],
+                "full_content_with_hashtags": full_content,
+                "ready_to_post": True,
+                "character_count": len(full_content),
+                "within_twitter_limit": len(full_content) <= 280
+            },
+            "posting_available": TWITTER_POSTER_AVAILABLE,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in enhanced content generation: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+#END POSTING FUNCTIONS
+
+#JOB MANAGEMENT
+# 4. ADD NEW ENDPOINTS for bot job management:
+
+@app.post("/api/bot-job/{job_id}/start")
+async def start_bot_job(job_id: str):
+    """Start a bot job"""
+    try:
+        logger.info(f"▶️ Starting bot job {job_id}")
+        
+        # TODO: Implement actual job starting logic
+        # For now, return success
+        
+        return {
+            "success": True,
+            "message": f"Job {job_id} started successfully",
+            "job_id": job_id,
+            "status": "running",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error starting job {job_id}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.post("/api/bot-job/{job_id}/stop")
+async def stop_bot_job(job_id: str):
+    """Stop a bot job"""
+    try:
+        logger.info(f"⏹️ Stopping bot job {job_id}")
+        
+        # TODO: Implement actual job stopping logic
+        
+        return {
+            "success": True,
+            "message": f"Job {job_id} stopped successfully",
+            "job_id": job_id,
+            "status": "stopped",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error stopping job {job_id}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.post("/api/bot-job/{job_id}/pause")
+async def pause_bot_job(job_id: str):
+    """Pause a bot job"""
+    try:
+        logger.info(f"⏸️ Pausing bot job {job_id}")
+        
+        # TODO: Implement actual job pausing logic
+        
+        return {
+            "success": True,
+            "message": f"Job {job_id} paused successfully", 
+            "job_id": job_id,
+            "status": "paused",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error pausing job {job_id}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.post("/api/bot-job/{job_id}/rename")
+async def rename_bot_job(job_id: str, request: Dict[str, Any]):
+    """Rename a bot job"""
+    try:
+        new_name = request.get("name", "")
+        
+        if not new_name:
+            return {
+                "success": False,
+                "error": "Missing new name",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        logger.info(f"✏️ Renaming bot job {job_id} to '{new_name}'")
+        
+        # TODO: Implement actual job renaming logic
+        
+        return {
+            "success": True,
+            "message": f"Job {job_id} renamed to '{new_name}' successfully",
+            "job_id": job_id,
+            "new_name": new_name,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error renaming job {job_id}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.post("/api/bot-job/create-posting-job")
+async def create_posting_job(request: Dict[str, Any]):
+    """Create a new posting job"""
+    try:
+        job_type = request.get("type", "posting")
+        job_name = request.get("name", "Untitled Job")
+        settings = request.get("settings", {})
+        
+        logger.info(f"➕ Creating new posting job: {job_name}")
+        logger.info(f"🔧 Settings: {settings}")
+        
+        # TODO: Implement actual job creation logic
+        import time
+        job_id = f"job_{int(time.time())}"
+        
+        return {
+            "success": True,
+            "message": f"Posting job '{job_name}' created successfully",
+            "job_id": job_id,
+            "job_name": job_name,
+            "job_type": job_type,
+            "settings": settings,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error creating posting job: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.post("/api/bot-job/create-reply-job")
+async def create_reply_job(request: Dict[str, Any]):
+    """Create a new reply job"""
+    try:
+        job_type = request.get("type", "replying")
+        job_name = request.get("name", "Untitled Reply Job")
+        settings = request.get("settings", {})
+        max_replies_per_hour = request.get("maxRepliesPerHour", 10)
+        auto_reply = request.get("autoReply", False)
+        sentiment_filter = request.get("sentiment_filter", "positive")
+        
+        logger.info(f"➕ Creating new reply job: {job_name}")
+        logger.info(f"🔧 Max replies per hour: {max_replies_per_hour}")
+        
+        # TODO: Implement actual reply job creation logic
+        import time
+        job_id = f"reply_job_{int(time.time())}"
+        
+        return {
+            "success": True,
+            "message": f"Reply job '{job_name}' created successfully",
+            "job_id": job_id,
+            "job_name": job_name,
+            "job_type": job_type,
+            "max_replies_per_hour": max_replies_per_hour,
+            "auto_reply": auto_reply,
+            "sentiment_filter": sentiment_filter,
+            "settings": settings,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error creating reply job: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+#JOB MANAGEMENT END
 
 @app.post("/api/generate-content")
 async def generate_content_endpoint(request: GenerateContentRequest):
@@ -811,132 +1416,7 @@ async def post_tweet(request: Dict[str, Any]):
             "timestamp": datetime.now().isoformat()
         }
 
-@app.get("/api/twitter-status")
-async def get_twitter_status():
-    """Check real Twitter API connection status"""
-    try:
-        if not TWITTER_POSTER_AVAILABLE:
-            return {
-                "success": False,
-                "connected": False,
-                "status": "twitter_poster_not_available",
-                "message": "Twitter poster module not available - check if twitter_poster.py exists and imports correctly",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        logger.info("🔍 Testing Twitter API connection...")
-        connection_test = test_twitter_connection()
-        
-        if connection_test.get("success"):
-            # Get posting stats
-            stats = get_posting_stats()
-            
-            return {
-                "success": True,
-                "connected": True,
-                "status": "connected",
-                "message": "Twitter API connection successful",
-                "user": connection_test.get("user", {}),
-                "posting_stats": stats,
-                "rate_limit_info": {
-                    "can_post_now": stats.get("can_post_now", True),
-                    "min_interval_seconds": stats.get("min_interval_seconds", 60),
-                    "time_since_last_post": stats.get("time_since_last_post")
-                },
-                "timestamp": datetime.now().isoformat()
-            }
-        else:
-            return {
-                "success": False,
-                "connected": False,
-                "status": "connection_failed",
-                "message": f"Twitter API connection failed: {connection_test.get('error')}",
-                "error": connection_test.get("error"),
-                "rate_limited": connection_test.get("rate_limited", False),
-                "timestamp": datetime.now().isoformat()
-            }
-        
-    except Exception as e:
-        logger.error(f"❌ Error checking Twitter status: {e}")
-        return {
-            "success": False,
-            "connected": False,
-            "status": "error",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-@app.post("/api/test-real-twitter-post")
-async def test_real_twitter_post():
-    """Test posting with a real tweet ID for debugging"""
-    try:
-        # Use a real tweet ID for testing (this one should exist)
-        test_content = "Test reply from TradeUp bot! 🤖"
-        test_tweet_id = "1933598740780134467"  # The tweet ID from your logs
-        
-        logger.info(f"🧪 TESTING REAL TWITTER POST...")
-        logger.info(f"📝 Test content: {test_content}")
-        logger.info(f"🆔 Test tweet ID: {test_tweet_id}")
-        
-        if not TWITTER_POSTER_AVAILABLE or post_reply_tweet is None:
-            return {
-                "success": False,
-                "error": "Twitter poster not available",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        result = post_reply_tweet(test_content, test_tweet_id)
-        
-        logger.info(f"🔍 TEST RESULT: {result}")
-        
-        return {
-            "success": True,
-            "message": "Test completed",
-            "result": result,
-            "twitter_available": TWITTER_POSTER_AVAILABLE,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ Error in test: {e}")
-        import traceback
-        logger.error(f"❌ Full traceback: {traceback.format_exc()}")
-        return {
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc(),
-            "timestamp": datetime.now().isoformat()
-        }
-
-@app.get("/api/debug-twitter-config")
-async def debug_twitter_config():
-    """Debug Twitter configuration in twitter_poster.py"""
-    try:
-        # Import config from the same place twitter_poster.py does
-        from src.config import TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET
-        
-        return {
-            "success": True,
-            "config_check": {
-                "TWITTER_API_KEY": bool(TWITTER_API_KEY) and len(TWITTER_API_KEY) > 10 if TWITTER_API_KEY else False,
-                "TWITTER_API_SECRET": bool(TWITTER_API_SECRET) and len(TWITTER_API_SECRET) > 10 if TWITTER_API_SECRET else False,
-                "TWITTER_ACCESS_TOKEN": bool(TWITTER_ACCESS_TOKEN) and len(TWITTER_ACCESS_TOKEN) > 10 if TWITTER_ACCESS_TOKEN else False,
-                "TWITTER_ACCESS_SECRET": bool(TWITTER_ACCESS_SECRET) and len(TWITTER_ACCESS_SECRET) > 10 if TWITTER_ACCESS_SECRET else False,
-            },
-            "config_source": "src.config",
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ Error checking config: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-    
 # Add this debug endpoint to your main.py to diagnose the issue:
-
 @app.get("/api/debug-twitter-integration")
 async def debug_twitter_integration():
     """Debug endpoint to check Twitter integration status"""
@@ -989,51 +1469,6 @@ async def debug_twitter_integration():
             "timestamp": datetime.now().isoformat()
         }
 
-# Also add this test endpoint to try a direct call:
-@app.post("/api/test-direct-twitter-call")
-async def test_direct_twitter_call():
-    """Test calling the Twitter function directly"""
-    try:
-        if not TWITTER_POSTER_AVAILABLE:
-            return {
-                "success": False,
-                "error": "Twitter poster not available",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        if post_reply_tweet is None:
-            return {
-                "success": False,
-                "error": "post_reply_tweet function is None",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        # Test with dummy data (this won't actually post because the tweet ID is fake)
-        test_content = "Test reply content"
-        test_tweet_id = "0000000000000000000"  # Fake tweet ID for testing
-        
-        logger.info(f"🧪 Testing direct call to post_reply_tweet...")
-        logger.info(f"📝 Test content: {test_content}")
-        logger.info(f"🆔 Test tweet ID: {test_tweet_id}")
-        
-        result = post_reply_tweet(test_content, test_tweet_id)
-        
-        logger.info(f"🔍 Direct call result: {result}")
-        
-        return {
-            "success": True,
-            "message": "Direct call completed",
-            "result": result,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ Error in direct Twitter call test: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
 
 # Add a new endpoint for batch reply posting (for the approval workflow)
 @app.post("/api/post-replies-batch")
