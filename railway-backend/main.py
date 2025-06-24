@@ -231,18 +231,6 @@ async def health_check():
         "reply_status": "active" if reply_setup_success else "fallback"
     }
 
-@app.get("/api/bot-status")
-async def get_bot_status():
-    return {
-        "running": True,
-        "uptime": "Just started",
-        "lastRun": datetime.now().isoformat(),
-        "stats": {"postsToday": 0, "repliesToday": 0, "successRate": 100.0},
-        "jobs": [],
-        "reply_generator_active": reply_setup_success,
-        "timestamp": datetime.now().isoformat()
-    }
-
 @app.get("/api/posts")
 async def get_posts():
     posts = [
@@ -269,6 +257,68 @@ async def get_topics():
 
 
 #RECENT POSTS STORAGE
+# In-memory storage for recent posts (in production, use a database)
+recent_posts_storage = []
+
+def add_to_recent_posts(post_data: Dict[str, Any]):
+    """Add a new post to the recent posts storage"""
+    global recent_posts_storage
+    
+    # Create post object
+    post = {
+        "id": post_data.get("tweet_id", f"post_{int(time.time())}"),
+        "content": post_data.get("content", ""),
+        "type": post_data.get("type", "post"),  # "post" or "reply"
+        "engagement": {
+            "likes": 0,
+            "retweets": 0,
+            "replies": 0
+        },
+        "timestamp": post_data.get("posted_at", datetime.now().isoformat()),
+        "topics": post_data.get("topics", []),
+        "tweet_url": post_data.get("tweet_url", ""),
+        "tweet_id": post_data.get("tweet_id", "")
+    }
+    
+    # Add reply-specific data if it's a reply
+    if post_data.get("type") == "reply" and post_data.get("replied_to"):
+        post["replied_to"] = {
+            "tweet_id": post_data["replied_to"].get("tweet_id", ""),
+            "author": post_data["replied_to"].get("author", ""),
+            "content": post_data["replied_to"].get("content", ""),
+            "url": post_data["replied_to"].get("url", "")
+        }
+    
+    # Add to beginning of list (most recent first)
+    recent_posts_storage.insert(0, post)
+    
+    # Keep only the most recent 50 posts
+    if len(recent_posts_storage) > 50:
+        recent_posts_storage = recent_posts_storage[:50]
+    
+    logger.info(f"✅ Added post to recent posts: {post['id']}")
+
+# GET endpoint to fetch recent posts
+@app.get("/api/recent-posts")
+async def get_recent_posts():
+    """Get recent posts and replies"""
+    try:
+        logger.info("📋 Fetching recent posts...")
+        
+        return {
+            "success": True,
+            "posts": recent_posts_storage,
+            "count": len(recent_posts_storage),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching recent posts: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 # Job storage and management
 active_jobs = {}  # In production, use a database
@@ -762,37 +812,19 @@ async def create_reply_job(request: Dict[str, Any]):
             "timestamp": datetime.now().isoformat()
         }
 
-
 #END RECENT POSTS STORAGE
 
+#POSTING FUNCTIONS - Updated with working endpoints from the original file
 
-#POSTING FUNCTIONS
-# Add these endpoints to your main.py for original tweet posting:
-
-@app.post("/api/post-original-tweet")
-async def post_original_tweet_endpoint(request: Dict[str, Any]):
-    """Post an original tweet to Twitter"""
+@app.post("/api/post-to-twitter")
+async def post_to_twitter_endpoint(request: Dict[str, Any]):
+    """Post content to Twitter (original tweet) - this is what the frontend calls"""
     try:
         content = request.get("content", "")
+        topics = request.get("topics", [])
         
-        logger.info(f"📤 Attempting to post original tweet")
+        logger.info(f"📤 Attempting to post to Twitter")
         logger.info(f"📝 Tweet content: {content[:100]}...")
-        
-        if not TWITTER_POSTER_AVAILABLE or post_original_tweet is None:
-            logger.warning("🔄 Twitter poster not available, using simulation")
-            # Fallback to simulation
-            import time
-            mock_tweet_id = f"sim_tweet_{int(time.time())}"
-            
-            return {
-                "success": True,
-                "tweet_id": mock_tweet_id,
-                "message": "Tweet posted successfully (simulated - Twitter poster not available)",
-                "tweet_url": f"https://twitter.com/TradeUpApp/status/{mock_tweet_id}",
-                "content": content,
-                "simulated": True,
-                "timestamp": datetime.now().isoformat()
-            }
         
         if not content:
             return {
@@ -801,22 +833,61 @@ async def post_original_tweet_endpoint(request: Dict[str, Any]):
                 "timestamp": datetime.now().isoformat()
             }
         
+        if not TWITTER_POSTER_AVAILABLE or post_original_tweet is None:
+            logger.warning("🔄 Twitter poster not available, using simulation")
+            # Fallback to simulation
+            import time
+            mock_tweet_id = f"sim_tweet_{int(time.time())}"
+            tweet_url = f"https://twitter.com/TradeUpApp/status/{mock_tweet_id}"
+            
+            # Add to recent posts even if simulated
+            add_to_recent_posts({
+                "tweet_id": mock_tweet_id,
+                "content": content,
+                "type": "post",
+                "tweet_url": tweet_url,
+                "topics": topics,
+                "posted_at": datetime.now().isoformat()
+            })
+            
+            return {
+                "success": True,
+                "tweet_id": mock_tweet_id,
+                "message": "Tweet posted successfully (simulated - Twitter poster not available)",
+                "tweet_url": tweet_url,
+                "content": content,
+                "simulated": True,
+                "timestamp": datetime.now().isoformat()
+            }
+        
         # Use real Twitter API
-        logger.info("🐦 Using real Twitter API to post original tweet...")
+        logger.info("🐦 Using real Twitter API to post tweet...")
         result = post_original_tweet(content)
         
         logger.info(f"🔍 Twitter API result: {result}")
         
         if result.get("success"):
-            logger.info(f"✅ Successfully posted tweet with ID: {result.get('tweet_id')}")
+            tweet_id = result.get("tweet_id")
+            tweet_url = f"https://twitter.com/TradeUpApp/status/{tweet_id}"
+            logger.info(f"✅ Successfully posted tweet with ID: {tweet_id}")
+            
+            # Add to recent posts
+            add_to_recent_posts({
+                "tweet_id": tweet_id,
+                "content": content,
+                "type": "post",
+                "tweet_url": tweet_url,
+                "topics": topics,
+                "posted_at": datetime.now().isoformat()
+            })
             
             return {
                 "success": True,
-                "tweet_id": result.get("tweet_id"),
+                "tweet_id": tweet_id,
                 "message": "Tweet posted successfully to Twitter",
-                "tweet_url": result.get("url", f"https://twitter.com/TradeUpApp/status/{result.get('tweet_id')}"),
+                "tweet_url": tweet_url,
                 "content": content,
-                "posted_at": result.get("posted_at"),
+                "posted_at": datetime.now().isoformat(),
                 "simulated": False,
                 "timestamp": datetime.now().isoformat()
             }
@@ -826,12 +897,12 @@ async def post_original_tweet_endpoint(request: Dict[str, Any]):
             return {
                 "success": False,
                 "error": result.get("error", "Unknown Twitter API error"),
-                "rate_limited": result.get("rate_limited", False),
+                "rate_limited": "Too Many Requests" in str(result.get("error", "")),
                 "timestamp": datetime.now().isoformat()
             }
         
     except Exception as e:
-        logger.error(f"❌ Error in post_original_tweet_endpoint: {e}")
+        logger.error(f"❌ Error in post_to_twitter_endpoint: {e}")
         return {
             "success": False,
             "error": str(e),
@@ -885,7 +956,7 @@ async def generate_and_post_content(request: Dict[str, Any]):
         if post_immediately:
             logger.info("🚀 Posting generated content immediately...")
             
-            post_result = await post_original_tweet_endpoint({
+            post_result = await post_to_twitter_endpoint({
                 "content": content_with_hashtags
             })
             
@@ -1160,556 +1231,7 @@ async def generate_content_enhanced(request: GenerateContentRequest):
             "timestamp": datetime.now().isoformat()
         }
 
-@app.post("/api/post-to-twitter")
-async def post_to_twitter_endpoint(request: Dict[str, Any]):
-    """Post content to Twitter (original tweet) - this is what the frontend calls"""
-    try:
-        content = request.get("content", "")
-        topics = request.get("topics", [])
-        
-        logger.info(f"📤 Attempting to post to Twitter")
-        logger.info(f"📝 Tweet content: {content[:100]}...")
-        
-        if not content:
-            return {
-                "success": False,
-                "error": "Missing tweet content",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        if not TWITTER_POSTER_AVAILABLE or post_original_tweet is None:
-            logger.warning("🔄 Twitter poster not available, using simulation")
-            # Fallback to simulation
-            import time
-            mock_tweet_id = f"sim_tweet_{int(time.time())}"
-            tweet_url = f"https://twitter.com/TradeUpApp/status/{mock_tweet_id}"
-            
-            # Add to recent posts even if simulated
-            add_to_recent_posts({
-                "tweet_id": mock_tweet_id,
-                "content": content,
-                "type": "post",
-                "tweet_url": tweet_url,
-                "topics": topics,
-                "posted_at": datetime.now().isoformat()
-            })
-            
-            return {
-                "success": True,
-                "tweet_id": mock_tweet_id,
-                "message": "Tweet posted successfully (simulated - Twitter poster not available)",
-                "tweet_url": tweet_url,
-                "content": content,
-                "simulated": True,
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        # Use real Twitter API
-        logger.info("🐦 Using real Twitter API to post tweet...")
-        result = post_original_tweet(content)
-        
-        logger.info(f"🔍 Twitter API result: {result}")
-        
-        if result.get("success"):
-            tweet_id = result.get("tweet_id")
-            tweet_url = f"https://twitter.com/TradeUpApp/status/{tweet_id}"
-            logger.info(f"✅ Successfully posted tweet with ID: {tweet_id}")
-            
-            # Add to recent posts
-            add_to_recent_posts({
-                "tweet_id": tweet_id,
-                "content": content,
-                "type": "post",
-                "tweet_url": tweet_url,
-                "topics": topics,
-                "posted_at": datetime.now().isoformat()
-            })
-            
-            return {
-                "success": True,
-                "tweet_id": tweet_id,
-                "message": "Tweet posted successfully to Twitter",
-                "tweet_url": tweet_url,
-                "content": content,
-                "posted_at": datetime.now().isoformat(),
-                "simulated": False,
-                "timestamp": datetime.now().isoformat()
-            }
-        else:
-            logger.error(f"❌ Failed to post tweet: {result.get('error')}")
-            
-            return {
-                "success": False,
-                "error": result.get("error", "Unknown Twitter API error"),
-                "rate_limited": "Too Many Requests" in str(result.get("error", "")),
-                "timestamp": datetime.now().isoformat()
-            }
-        
-    except Exception as e:
-        logger.error(f"❌ Error in post_to_twitter_endpoint: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
 #END POSTING FUNCTIONS
-
-#JOB MANAGEMENT
-
-active_jobs = {}  # In production, use a database
-job_threads = {}  # Track running job threads
-
-class JobManager:
-    def __init__(self):
-        self.jobs = {}
-        self.running_threads = {}
-        
-    def create_job(self, job_id: str, job_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a new job"""
-        job = {
-            "id": job_id,
-            "name": job_data.get("name", f"Job {job_id}"),
-            "type": job_data.get("type", "posting"),
-            "status": "stopped",
-            "settings": job_data.get("settings", {}),
-            "createdAt": datetime.now().isoformat(),
-            "lastRun": None,
-            "nextRun": None,
-            "stats": {
-                "postsToday": 0,
-                "repliesToday": 0,
-                "successRate": 100
-            },
-            "approved_content": job_data.get("settings", {}).get("approvedContent", [])
-        }
-        
-        self.jobs[job_id] = job
-        logger.info(f"✅ Created job: {job_id} - {job['name']}")
-        return job
-    
-    def start_job(self, job_id: str) -> bool:
-        """Start a job"""
-        if job_id not in self.jobs:
-            return False
-            
-        job = self.jobs[job_id]
-        if job["status"] == "running":
-            return True
-            
-        job["status"] = "running"
-        job["lastRun"] = datetime.now().isoformat()
-        
-        # Start the job in a separate thread
-        if job["type"] == "posting":
-            thread = threading.Thread(target=self._run_posting_job, args=(job_id,))
-        elif job["type"] == "replying":
-            thread = threading.Thread(target=self._run_replying_job, args=(job_id,))
-        else:
-            return False
-            
-        thread.daemon = True
-        thread.start()
-        self.running_threads[job_id] = thread
-        
-        logger.info(f"▶️ Started job: {job_id}")
-        return True
-    
-    def stop_job(self, job_id: str) -> bool:
-        """Stop a job"""
-        if job_id not in self.jobs:
-            return False
-            
-        self.jobs[job_id]["status"] = "stopped"
-        
-        # The thread will check the status and stop itself
-        if job_id in self.running_threads:
-            # Don't force kill threads, let them finish gracefully
-            logger.info(f"⏹️ Stopping job: {job_id}")
-            
-        return True
-    
-    def pause_job(self, job_id: str) -> bool:
-        """Pause a job"""
-        if job_id not in self.jobs:
-            return False
-            
-        self.jobs[job_id]["status"] = "paused"
-        logger.info(f"⏸️ Paused job: {job_id}")
-        return True
-    
-    def rename_job(self, job_id: str, new_name: str) -> bool:
-        """Rename a job"""
-        if job_id not in self.jobs:
-            return False
-            
-        self.jobs[job_id]["name"] = new_name
-        logger.info(f"✏️ Renamed job {job_id} to: {new_name}")
-        return True
-    
-    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
-        """Get a specific job"""
-        return self.jobs.get(job_id)
-    
-    def get_all_jobs(self) -> List[Dict[str, Any]]:
-        """Get all jobs"""
-        return list(self.jobs.values())
-    
-    def _run_posting_job(self, job_id: str):
-        """Run a posting job in the background"""
-        job = self.jobs[job_id]
-        approved_content = job.get("approved_content", [])
-        
-        logger.info(f"🚀 Starting posting job {job_id} with {len(approved_content)} posts")
-        
-        for i, content_item in enumerate(approved_content):
-            # Check if job should continue running
-            if self.jobs[job_id]["status"] != "running":
-                logger.info(f"⏹️ Job {job_id} stopped, exiting")
-                break
-                
-            try:
-                logger.info(f"📝 Posting content {i+1}/{len(approved_content)}")
-                
-                # Post the content
-                result = post_original_tweet(content_item.get("content", ""))
-                
-                if result.get("success"):
-                    # Add to recent posts
-                    add_to_recent_posts({
-                        "tweet_id": result.get("tweet_id"),
-                        "content": content_item.get("content", ""),
-                        "type": "post",
-                        "tweet_url": f"https://twitter.com/TradeUpApp/status/{result.get('tweet_id')}",
-                        "topics": content_item.get("topics", []),
-                        "posted_at": datetime.now().isoformat()
-                    })
-                    
-                    # Update job stats
-                    self.jobs[job_id]["stats"]["postsToday"] += 1
-                    self.jobs[job_id]["lastRun"] = datetime.now().isoformat()
-                    
-                    logger.info(f"✅ Successfully posted content {i+1}")
-                else:
-                    logger.error(f"❌ Failed to post content {i+1}: {result.get('error')}")
-                
-                # Wait between posts (avoid rate limiting)
-                if i < len(approved_content) - 1:  # Don't wait after the last post
-                    logger.info("⏰ Waiting 65 seconds between posts...")
-                    time.sleep(65)
-                    
-            except Exception as e:
-                logger.error(f"❌ Error posting content {i+1}: {e}")
-        
-        # Job completed
-        self.jobs[job_id]["status"] = "stopped"
-        logger.info(f"🏁 Posting job {job_id} completed")
-    
-    def _run_replying_job(self, job_id: str):
-        """Run a replying job in the background"""
-        job = self.jobs[job_id]
-        approved_content = job.get("approved_content", [])
-        
-        logger.info(f"🚀 Starting replying job {job_id} with {len(approved_content)} replies")
-        
-        for i, reply_item in enumerate(approved_content):
-            # Check if job should continue running
-            if self.jobs[job_id]["status"] != "running":
-                logger.info(f"⏹️ Job {job_id} stopped, exiting")
-                break
-                
-            try:
-                logger.info(f"💬 Posting reply {i+1}/{len(approved_content)}")
-                
-                # Post the reply
-                result = post_reply_tweet(
-                    reply_item.get("content", ""), 
-                    reply_item.get("tweetId", "")
-                )
-                
-                if result.get("success"):
-                    # Add to recent posts
-                    add_to_recent_posts({
-                        "tweet_id": result.get("tweet_id"),
-                        "content": reply_item.get("content", ""),
-                        "type": "reply",
-                        "tweet_url": f"https://twitter.com/TradeUpApp/status/{result.get('tweet_id')}",
-                        "posted_at": datetime.now().isoformat(),
-                        "replied_to": {
-                            "tweet_id": reply_item.get("tweetId", ""),
-                            "author": reply_item.get("tweetAuthor", ""),
-                            "content": reply_item.get("originalTweet", ""),
-                            "url": f"https://twitter.com/{reply_item.get('tweetAuthor', '')}/status/{reply_item.get('tweetId', '')}"
-                        }
-                    })
-                    
-                    # Update job stats
-                    self.jobs[job_id]["stats"]["repliesToday"] += 1
-                    self.jobs[job_id]["lastRun"] = datetime.now().isoformat()
-                    
-                    logger.info(f"✅ Successfully posted reply {i+1}")
-                else:
-                    logger.error(f"❌ Failed to post reply {i+1}: {result.get('error')}")
-                
-                # Wait between replies (avoid rate limiting)
-                if i < len(approved_content) - 1:  # Don't wait after the last reply
-                    logger.info("⏰ Waiting 65 seconds between replies...")
-                    time.sleep(65)
-                    
-            except Exception as e:
-                logger.error(f"❌ Error posting reply {i+1}: {e}")
-        
-        # Job completed
-        self.jobs[job_id]["status"] = "stopped"
-        logger.info(f"🏁 Replying job {job_id} completed")
-
-# Create global job manager instance
-job_manager = JobManager()
-
-# Update your bot-status endpoint to include real jobs
-@app.get("/api/bot-status")
-async def get_bot_status():
-    """Get current bot status including active jobs"""
-    try:
-        jobs = job_manager.get_all_jobs()
-        
-        # Calculate total stats
-        total_posts_today = sum(job["stats"]["postsToday"] for job in jobs)
-        total_replies_today = sum(job["stats"]["repliesToday"] for job in jobs)
-        
-        return {
-            "running": any(job["status"] == "running" for job in jobs),
-            "uptime": None,
-            "lastRun": max([job["lastRun"] for job in jobs if job["lastRun"]], default=None),
-            "stats": {
-                "postsToday": total_posts_today,
-                "repliesToday": total_replies_today,
-                "successRate": 95  # You can calculate this based on actual success/failure rates
-            },
-            "jobs": jobs,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ Error getting bot status: {e}")
-        return {
-            "running": False,
-            "uptime": None,
-            "lastRun": None,
-            "stats": {"postsToday": 0, "repliesToday": 0, "successRate": 0},
-            "jobs": [],
-            "timestamp": datetime.now().isoformat()
-        }
-
-# Update your job management endpoints to use the real job manager
-@app.post("/api/bot-job/{job_id}/start")
-async def start_bot_job(job_id: str):
-    """Start a bot job"""
-    try:
-        success = job_manager.start_job(job_id)
-        
-        if success:
-            job = job_manager.get_job(job_id)
-            return {
-                "success": True,
-                "message": f"Job {job_id} started successfully",
-                "job_id": job_id,
-                "status": job["status"] if job else "running",
-                "timestamp": datetime.now().isoformat()
-            }
-        else:
-            return {
-                "success": False,
-                "error": f"Job {job_id} not found or already running",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-    except Exception as e:
-        logger.error(f"❌ Error starting job {job_id}: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-@app.post("/api/bot-job/{job_id}/stop")
-async def stop_bot_job(job_id: str):
-    """Stop a bot job"""
-    try:
-        success = job_manager.stop_job(job_id)
-        
-        if success:
-            return {
-                "success": True,
-                "message": f"Job {job_id} stopped successfully",
-                "job_id": job_id,
-                "status": "stopped",
-                "timestamp": datetime.now().isoformat()
-            }
-        else:
-            return {
-                "success": False,
-                "error": f"Job {job_id} not found",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-    except Exception as e:
-        logger.error(f"❌ Error stopping job {job_id}: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-@app.post("/api/bot-job/{job_id}/pause")
-async def pause_bot_job(job_id: str):
-    """Pause a bot job"""
-    try:
-        success = job_manager.pause_job(job_id)
-        
-        if success:
-            return {
-                "success": True,
-                "message": f"Job {job_id} paused successfully", 
-                "job_id": job_id,
-                "status": "paused",
-                "timestamp": datetime.now().isoformat()
-            }
-        else:
-            return {
-                "success": False,
-                "error": f"Job {job_id} not found",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-    except Exception as e:
-        logger.error(f"❌ Error pausing job {job_id}: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-@app.post("/api/bot-job/{job_id}/rename")
-async def rename_bot_job(job_id: str, request: Dict[str, Any]):
-    """Rename a bot job"""
-    try:
-        new_name = request.get("name", "")
-        
-        if not new_name:
-            return {
-                "success": False,
-                "error": "Missing new name",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        success = job_manager.rename_job(job_id, new_name)
-        
-        if success:
-            return {
-                "success": True,
-                "message": f"Job {job_id} renamed to '{new_name}' successfully",
-                "job_id": job_id,
-                "new_name": new_name,
-                "timestamp": datetime.now().isoformat()
-            }
-        else:
-            return {
-                "success": False,
-                "error": f"Job {job_id} not found",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-    except Exception as e:
-        logger.error(f"❌ Error renaming job {job_id}: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-@app.post("/api/bot-job/create-posting-job")
-async def create_posting_job(request: Dict[str, Any]):
-    """Create a new posting job"""
-    try:
-        job_type = request.get("type", "posting")
-        job_name = request.get("name", "Untitled Job")
-        settings = request.get("settings", {})
-        
-        logger.info(f"➕ Creating new posting job: {job_name}")
-        
-        # Generate unique job ID
-        job_id = f"posting_job_{int(time.time())}"
-        
-        # Create the job
-        job = job_manager.create_job(job_id, {
-            "type": job_type,
-            "name": job_name,
-            "settings": settings
-        })
-        
-        return {
-            "success": True,
-            "message": f"Posting job '{job_name}' created successfully",
-            "job_id": job_id,
-            "job_name": job_name,
-            "job_type": job_type,
-            "settings": settings,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ Error creating posting job: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-@app.post("/api/bot-job/create-reply-job")
-async def create_reply_job(request: Dict[str, Any]):
-    """Create a new reply job"""
-    try:
-        job_type = request.get("type", "replying")
-        job_name = request.get("name", "Untitled Reply Job")
-        settings = request.get("settings", {})
-        max_replies_per_hour = request.get("maxRepliesPerHour", 10)
-        
-        logger.info(f"➕ Creating new reply job: {job_name}")
-        
-        # Generate unique job ID
-        job_id = f"reply_job_{int(time.time())}"
-        
-        # Create the job
-        job = job_manager.create_job(job_id, {
-            "type": job_type,
-            "name": job_name,
-            "settings": {
-                **settings,
-                "maxRepliesPerHour": max_replies_per_hour
-            }
-        })
-        
-        return {
-            "success": True,
-            "message": f"Reply job '{job_name}' created successfully",
-            "job_id": job_id,
-            "job_name": job_name,
-            "job_type": job_type,
-            "max_replies_per_hour": max_replies_per_hour,
-            "settings": settings,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ Error creating reply job: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-#JOB MANAGEMENT END
 
 @app.post("/api/generate-content")
 async def generate_content_endpoint(request: GenerateContentRequest):
@@ -1858,51 +1380,6 @@ async def fetch_tweets_from_sheets():
                     "created_at": (datetime.now() - timedelta(hours=3)).isoformat(),
                     "url": "https://twitter.com/BoosterBoxBen/status/123456793",
                     "conversation_id": "tweet_5"
-                },
-                {
-                    "id": "tweet_6",
-                    "text": "Teaching my 8-year-old how to play Pokemon TCG. Love seeing the next generation get into the game! Any tips for beginner-friendly decks?",
-                    "author": "PokeDadTrainer",
-                    "author_name": "Poke Dad Trainer",
-                    "created_at": (datetime.now() - timedelta(hours=4)).isoformat(),
-                    "url": "https://twitter.com/PokeDadTrainer/status/123456794",
-                    "conversation_id": "tweet_6"
-                },
-                {
-                    "id": "tweet_7",
-                    "text": "Market prices on vintage Pokemon cards are insane right now. My 1998 Charizard is worth more than my car! 🚗➡️🐉",
-                    "author": "VintageCardKing",
-                    "author_name": "Vintage Card King",
-                    "created_at": (datetime.now() - timedelta(hours=5)).isoformat(),
-                    "url": "https://twitter.com/VintageCardKing/status/123456795",
-                    "conversation_id": "tweet_7"
-                },
-                {
-                    "id": "tweet_8",
-                    "text": "Local game store is hosting a Pokemon TCG tournament this weekend. Prize support looks amazing! Time to test my new deck build.",
-                    "author": "CompetitivePlayer",
-                    "author_name": "Competitive Player",
-                    "created_at": (datetime.now() - timedelta(hours=6)).isoformat(),
-                    "url": "https://twitter.com/CompetitivePlayer/status/123456796",
-                    "conversation_id": "tweet_8"
-                },
-                {
-                    "id": "tweet_9",
-                    "text": "Just discovered Pokemon TCG Live and I'm hooked! The digital version is perfect for testing deck ideas before buying physical cards.",
-                    "author": "DigitalTrainer",
-                    "author_name": "Digital Trainer",
-                    "created_at": (datetime.now() - timedelta(hours=7)).isoformat(),
-                    "url": "https://twitter.com/DigitalTrainer/status/123456797",
-                    "conversation_id": "tweet_9"
-                },
-                {
-                    "id": "tweet_10",
-                    "text": "Pulled my first alternate art card today! The artwork on these special cards is absolutely stunning. Pokemon artists are incredible.",
-                    "author": "ArtCollector2024",
-                    "author_name": "Art Collector",
-                    "created_at": (datetime.now() - timedelta(hours=8)).isoformat(),
-                    "url": "https://twitter.com/ArtCollector2024/status/123456798",
-                    "conversation_id": "tweet_10"
                 }
             ]
             
@@ -1935,15 +1412,6 @@ async def fetch_tweets_from_sheets():
                     "created_at": datetime.now().isoformat(),
                     "url": "https://twitter.com/MockUser1/status/1234567890",
                     "conversation_id": "mock_tweet_1"
-                },
-                {
-                    "id": "mock_tweet_2", 
-                    "text": "Building a new Pokemon deck for the upcoming tournament. Excited to test it out!",
-                    "author": "MockUser2",
-                    "author_name": "Mock User 2",
-                    "created_at": datetime.now().isoformat(),
-                    "url": "https://twitter.com/MockUser2/status/1234567891",
-                    "conversation_id": "mock_tweet_2"
                 }
             ]
             
@@ -1967,170 +1435,13 @@ async def fetch_tweets_from_sheets():
         
     except Exception as e:
         logger.error(f"❌ Error fetching tweets from Google Sheets: {e}")
-        logger.error(f"❌ Error type: {type(e).__name__}")
-        
-        # Return mock data as fallback to prevent frontend crashes
-        fallback_tweets = [
-            {
-                "id": "fallback_tweet_1",
-                "text": "Just pulled a rare Pokemon card! The excitement never gets old in this hobby!",
-                "author": "FallbackUser1",
-                "author_name": "Fallback User 1",
-                "created_at": datetime.now().isoformat(),
-                "url": "https://twitter.com/FallbackUser1/status/1111111111",
-                "conversation_id": "fallback_tweet_1"
-            },
-            {
-                "id": "fallback_tweet_2",
-                "text": "Working on a new Pokemon deck strategy. Any suggestions for good synergy cards?",
-                "author": "FallbackUser2", 
-                "author_name": "Fallback User 2",
-                "created_at": datetime.now().isoformat(),
-                "url": "https://twitter.com/FallbackUser2/status/1111111112",
-                "conversation_id": "fallback_tweet_2"
-            },
-            {
-                "id": "fallback_tweet_3",
-                "text": "Pokemon TCG tournament this weekend! Nervous but excited to compete with my deck.",
-                "author": "FallbackUser3",
-                "author_name": "Fallback User 3", 
-                "created_at": datetime.now().isoformat(),
-                "url": "https://twitter.com/FallbackUser3/status/1111111113",
-                "conversation_id": "fallback_tweet_3"
-            }
-        ]
-        
-        return {
-            "success": True,  # Return success=True to prevent frontend errors
-            "tweets": fallback_tweets,
-            "count": len(fallback_tweets),
-            "source": "Fallback Data (Error occurred)",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-@app.get("/api/test-google-sheets")
-async def test_google_sheets_connection():
-    """Test the connection to Google Sheets and return status"""
-    try:
-        if not GOOGLE_SHEETS_AVAILABLE:
-            return {
-                "success": False,
-                "message": "Google Sheets reader is not available. Check if google_sheets_reader.py is installed.",
-                "available": False,
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        if test_sheet_connection is None:
-            return {
-                "success": False,
-                "message": "Google Sheets test function not available",
-                "available": False,
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        logger.info("🧪 Testing Google Sheets connection...")
-        test_result = test_sheet_connection(GOOGLE_SHEETS_URL)
-        
-        return {
-            "success": test_result["success"],
-            "message": test_result["message"],
-            "available": True,
-            "tweets_found": test_result["tweets_found"],
-            "sample_tweets": test_result["sample_tweets"],
-            "sheets_url": GOOGLE_SHEETS_URL,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ Error testing Google Sheets: {e}")
-        return {
-            "success": False,
-            "message": f"Error testing Google Sheets connection: {str(e)}",
-            "available": GOOGLE_SHEETS_AVAILABLE,
-            "timestamp": datetime.now().isoformat()
-        }
-    
-
-@app.post("/api/generate-replies-batch")
-async def generate_replies_batch():
-    """Generate replies for multiple tweets using reply generator"""
-    try:
-        # First fetch tweets
-        tweets_response = await fetch_tweets_from_sheets()
-        
-        if not tweets_response.get("success", False):
-            return {
-                "success": False,
-                "error": "Failed to fetch tweets",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        tweets = tweets_response.get("tweets", [])
-        generated_replies = []
-        
-        for tweet in tweets:
-            try:
-                logger.info(f"🤖 Generating reply for tweet {tweet['id']}")
-                
-                reply_result = generate_reply(
-                    tweet["text"], 
-                    tweet["author"]
-                )
-                
-                if isinstance(reply_result, dict):
-                    reply_content = reply_result.get("content", "No reply generated")
-                    success = reply_result.get("success", False)
-                    error = reply_result.get("error", None)
-                    llm_used = reply_result.get("llm_used", False)
-                else:
-                    reply_content = str(reply_result)
-                    success = True
-                    error = None
-                    llm_used = False
-                
-                generated_replies.append({
-                    "tweet_id": tweet["id"],
-                    "original_tweet": tweet["text"],
-                    "author": tweet["author"],
-                    "generated_reply": reply_content,
-                    "success": success,
-                    "error": error,
-                    "llm_used": llm_used,
-                    "timestamp": datetime.now().isoformat(),
-                    "reply_generator_used": reply_setup_success
-                })
-                
-            except Exception as e:
-                logger.error(f"Error generating reply for tweet {tweet['id']}: {e}")
-                generated_replies.append({
-                    "tweet_id": tweet["id"],
-                    "original_tweet": tweet["text"],
-                    "author": tweet["author"],
-                    "generated_reply": "Error generating reply",
-                    "success": False,
-                    "error": str(e),
-                    "llm_used": False,
-                    "timestamp": datetime.now().isoformat(),
-                    "reply_generator_used": False
-                })
-        
-        return {
-            "success": True,
-            "replies": generated_replies,
-            "total_processed": len(generated_replies),
-            "reply_generator_active": reply_setup_success,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in batch reply generation: {e}")
         return {
             "success": False,
             "error": str(e),
+            "tweets": [],
             "timestamp": datetime.now().isoformat()
         }
-    
+
 @app.post("/api/post-reply-with-tracking")
 async def post_reply_with_tracking_endpoint(request: Dict[str, Any]):
     """Post a reply to Twitter with tracking"""
@@ -2241,231 +1552,6 @@ async def post_reply_with_tracking_endpoint(request: Dict[str, Any]):
         
     except Exception as e:
         logger.error(f"❌ Error in post_reply_with_tracking_endpoint: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-@app.post("/api/post-tweet")
-async def post_tweet(request: Dict[str, Any]):
-    """Post a new tweet with real Twitter API integration"""
-    try:
-        content = request.get("content", "")
-        
-        logger.info(f"📤 Attempting to post new tweet")
-        logger.info(f"📝 Tweet content: {content[:100]}...")
-        
-        if not TWITTER_POSTER_AVAILABLE:
-            logger.warning("🔄 Twitter poster not available, using simulation")
-            # Fallback to simulation
-            import time
-            mock_tweet_id = f"sim_tweet_{int(time.time())}"
-            
-            return {
-                "success": True,
-                "tweet_id": mock_tweet_id,
-                "message": "Tweet posted successfully (simulated - Twitter poster not available)",
-                "tweet_url": f"https://twitter.com/TradeUpApp/status/{mock_tweet_id}",
-                "content": content,
-                "simulated": True,
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        if not content:
-            return {
-                "success": False,
-                "error": "Missing tweet content",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        # Use real Twitter API
-        logger.info("🐦 Using real Twitter API to post tweet...")
-        result = post_original_tweet(content)
-        
-        if result.get("success"):
-            logger.info(f"✅ Successfully posted tweet with ID: {result.get('tweet_id')}")
-            
-            return {
-                "success": True,
-                "tweet_id": result.get("tweet_id"),
-                "message": "Tweet posted successfully to Twitter",
-                "tweet_url": result.get("url", f"https://twitter.com/TradeUpApp/status/{result.get('tweet_id')}"),
-                "content": content,
-                "posted_at": result.get("posted_at"),
-                "simulated": False,
-                "timestamp": datetime.now().isoformat()
-            }
-        else:
-            logger.error(f"❌ Failed to post tweet: {result.get('error')}")
-            
-            return {
-                "success": False,
-                "error": result.get("error", "Unknown Twitter API error"),
-                "rate_limited": result.get("rate_limited", False),
-                "timestamp": datetime.now().isoformat()
-            }
-        
-    except Exception as e:
-        logger.error(f"❌ Error in post_tweet: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-# Add this debug endpoint to your main.py to diagnose the issue:
-@app.get("/api/debug-twitter-integration")
-async def debug_twitter_integration():
-    """Debug endpoint to check Twitter integration status"""
-    try:
-        debug_info = {
-            "twitter_poster_available": TWITTER_POSTER_AVAILABLE,
-            "functions_imported": {},
-            "import_path": "unknown",
-            "environment_variables": {
-                "TWITTER_API_KEY": bool(os.getenv("TWITTER_API_KEY")),
-                "TWITTER_API_SECRET": bool(os.getenv("TWITTER_API_SECRET")),
-                "TWITTER_ACCESS_TOKEN": bool(os.getenv("TWITTER_ACCESS_TOKEN")),
-                "TWITTER_ACCESS_SECRET": bool(os.getenv("TWITTER_ACCESS_SECRET")),
-            }
-        }
-        
-        # Check which functions are available
-        if TWITTER_POSTER_AVAILABLE:
-            debug_info["functions_imported"] = {
-                "post_reply_tweet": post_reply_tweet is not None,
-                "post_original_tweet": post_original_tweet is not None,
-                "test_twitter_connection": test_twitter_connection is not None,
-                "get_posting_stats": get_posting_stats is not None,
-            }
-            
-            # Check the actual function types
-            debug_info["function_types"] = {
-                "post_reply_tweet": str(type(post_reply_tweet)),
-                "post_original_tweet": str(type(post_original_tweet)),
-            }
-        
-        # Test a direct call to see what happens
-        if TWITTER_POSTER_AVAILABLE and post_reply_tweet is not None:
-            try:
-                # Try calling the function with test data to see the response structure
-                debug_info["test_call_result"] = "Function exists and is callable"
-            except Exception as e:
-                debug_info["test_call_error"] = str(e)
-        
-        return {
-            "success": True,
-            "debug_info": debug_info,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-
-# Add a new endpoint for batch reply posting (for the approval workflow)
-@app.post("/api/post-replies-batch")
-async def post_replies_batch(request: Dict[str, Any]):
-    """Post multiple approved replies to Twitter"""
-    try:
-        replies = request.get("replies", [])
-        
-        if not replies:
-            return {
-                "success": False,
-                "error": "No replies provided",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        logger.info(f"📤 Batch posting {len(replies)} replies to Twitter...")
-        
-        results = []
-        success_count = 0
-        
-        for i, reply_data in enumerate(replies):
-            try:
-                content = reply_data.get("content", "")
-                tweet_id = reply_data.get("tweet_id", "")
-                
-                if not content or not tweet_id:
-                    logger.warning(f"Skipping reply {i+1}: missing content or tweet_id")
-                    results.append({
-                        "success": False,
-                        "error": "Missing content or tweet_id",
-                        "original_data": reply_data
-                    })
-                    continue
-                
-                logger.info(f"📝 Posting reply {i+1}/{len(replies)} to tweet {tweet_id}")
-                
-                if TWITTER_POSTER_AVAILABLE:
-                    # Use real Twitter API
-                    result = post_reply_tweet(content, tweet_id)
-                    
-                    if result.get("success"):
-                        success_count += 1
-                        results.append({
-                            "success": True,
-                            "tweet_id": result.get("tweet_id"),
-                            "reply_url": result.get("url"),
-                            "content": content,
-                            "original_tweet_id": tweet_id,
-                            "posted_at": result.get("posted_at")
-                        })
-                        logger.info(f"✅ Successfully posted reply {i+1}")
-                    else:
-                        results.append({
-                            "success": False,
-                            "error": result.get("error"),
-                            "rate_limited": result.get("rate_limited", False),
-                            "content": content,
-                            "original_tweet_id": tweet_id
-                        })
-                        logger.error(f"❌ Failed to post reply {i+1}: {result.get('error')}")
-                else:
-                    # Simulation mode
-                    import time
-                    mock_id = f"sim_batch_reply_{int(time.time())}_{i}"
-                    success_count += 1
-                    results.append({
-                        "success": True,
-                        "tweet_id": mock_id,
-                        "reply_url": f"https://twitter.com/TradeUpApp/status/{mock_id}",
-                        "content": content,
-                        "original_tweet_id": tweet_id,
-                        "simulated": True
-                    })
-                    logger.info(f"✅ Simulated posting reply {i+1}")
-                
-                # Small delay between posts to avoid rate limits
-                if i < len(replies) - 1:  # Don't sleep after the last one
-                    time.sleep(2)
-                    
-            except Exception as e:
-                logger.error(f"❌ Error posting reply {i+1}: {e}")
-                results.append({
-                    "success": False,
-                    "error": str(e),
-                    "original_data": reply_data
-                })
-        
-        return {
-            "success": True,
-            "total_processed": len(replies),
-            "successful_posts": success_count,
-            "failed_posts": len(replies) - success_count,
-            "results": results,
-            "twitter_available": TWITTER_POSTER_AVAILABLE,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ Error in batch reply posting: {e}")
         return {
             "success": False,
             "error": str(e),
