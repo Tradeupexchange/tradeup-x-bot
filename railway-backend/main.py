@@ -665,27 +665,21 @@ async def post_reply_with_tracking(request: Dict[str, Any]):
         content = request.get("content", "")
         reply_to_tweet_id = request.get("reply_to_tweet_id", "")
         
-        logger.info(f"📤 Attempting to post reply to tweet {reply_to_tweet_id}")
-        logger.info(f"📝 Reply content: {content[:100]}...")
+        logger.info(f"📤 POST-REPLY-WITH-TRACKING: Starting...")
+        logger.info(f"📝 Content: {content}")
+        logger.info(f"🆔 Reply to tweet ID: {reply_to_tweet_id}")
+        logger.info(f"🔍 Request data: {request}")
         
-        if not TWITTER_POSTER_AVAILABLE:
-            logger.warning("🔄 Twitter poster not available, using simulation")
-            # Fallback to simulation
-            import time
-            mock_reply_id = f"sim_reply_{int(time.time())}"
-            
+        if not TWITTER_POSTER_AVAILABLE or post_reply_tweet is None:
+            logger.error("❌ TWITTER POSTER NOT AVAILABLE")
             return {
-                "success": True,
-                "tweet_id": mock_reply_id,
-                "message": "Reply posted successfully (simulated - Twitter poster not available)",
-                "reply_url": f"https://twitter.com/TradeUpApp/status/{mock_reply_id}",
-                "original_tweet_id": reply_to_tweet_id,
-                "content": content,
-                "simulated": True,
+                "success": False,
+                "error": "Twitter poster not available",
                 "timestamp": datetime.now().isoformat()
             }
         
         if not content or not reply_to_tweet_id:
+            logger.error(f"❌ MISSING DATA - content: '{content}', tweet_id: '{reply_to_tweet_id}'")
             return {
                 "success": False,
                 "error": "Missing content or reply_to_tweet_id",
@@ -693,11 +687,17 @@ async def post_reply_with_tracking(request: Dict[str, Any]):
             }
         
         # Use real Twitter API
-        logger.info("🐦 Using real Twitter API to post reply...")
+        logger.info("🐦 CALLING REAL TWITTER API...")
+        logger.info(f"🎯 Function call: post_reply_tweet('{content}', '{reply_to_tweet_id}')")
+        
         result = post_reply_tweet(content, reply_to_tweet_id)
         
-        if result.get("success"):
-            logger.info(f"✅ Successfully posted reply with ID: {result.get('tweet_id')}")
+        logger.info(f"🔍 TWITTER API RESULT: {result}")
+        logger.info(f"🔍 Result type: {type(result)}")
+        logger.info(f"🔍 Result success: {result.get('success') if isinstance(result, dict) else 'Not a dict'}")
+        
+        if isinstance(result, dict) and result.get("success"):
+            logger.info(f"✅ SUCCESS: Posted reply with ID: {result.get('tweet_id')}")
             
             return {
                 "success": True,
@@ -711,20 +711,36 @@ async def post_reply_with_tracking(request: Dict[str, Any]):
                 "timestamp": datetime.now().isoformat()
             }
         else:
-            logger.error(f"❌ Failed to post reply: {result.get('error')}")
+            logger.error(f"❌ TWITTER API FAILED")
+            logger.error(f"❌ Full result: {result}")
+            
+            # Extract error message
+            if isinstance(result, dict):
+                error_msg = result.get("error", "Unknown Twitter API error")
+                rate_limited = result.get("rate_limited", False)
+            else:
+                error_msg = f"Unexpected result type: {type(result)} - {result}"
+                rate_limited = False
+            
+            logger.error(f"❌ Error message: {error_msg}")
+            logger.error(f"❌ Rate limited: {rate_limited}")
             
             return {
                 "success": False,
-                "error": result.get("error", "Unknown Twitter API error"),
-                "rate_limited": result.get("rate_limited", False),
+                "error": error_msg,
+                "rate_limited": rate_limited,
+                "debug_result": result,
                 "timestamp": datetime.now().isoformat()
             }
         
     except Exception as e:
-        logger.error(f"❌ Error in post_reply_with_tracking: {e}")
+        logger.error(f"❌ EXCEPTION in post_reply_with_tracking: {e}")
+        import traceback
+        logger.error(f"❌ Full traceback: {traceback.format_exc()}")
         return {
             "success": False,
             "error": str(e),
+            "traceback": traceback.format_exc(),
             "timestamp": datetime.now().isoformat()
         }
 
@@ -850,30 +866,45 @@ async def get_twitter_status():
             "timestamp": datetime.now().isoformat()
         }
 
-@app.get("/api/twitter-posting-stats")
-async def get_twitter_posting_stats():
-    """Get Twitter posting statistics and rate limit info"""
+@app.post("/api/test-real-twitter-post")
+async def test_real_twitter_post():
+    """Test posting with a real tweet ID for debugging"""
     try:
-        if not TWITTER_POSTER_AVAILABLE:
+        # Use a real tweet ID for testing (this one should exist)
+        test_content = "Test reply from TradeUp bot! 🤖"
+        test_tweet_id = "1933598740780134467"  # The tweet ID from your logs
+        
+        logger.info(f"🧪 TESTING REAL TWITTER POST...")
+        logger.info(f"📝 Test content: {test_content}")
+        logger.info(f"🆔 Test tweet ID: {test_tweet_id}")
+        
+        if not TWITTER_POSTER_AVAILABLE or post_reply_tweet is None:
             return {
                 "success": False,
-                "message": "Twitter poster not available",
+                "error": "Twitter poster not available",
                 "timestamp": datetime.now().isoformat()
             }
         
-        stats = get_posting_stats()
+        result = post_reply_tweet(test_content, test_tweet_id)
+        
+        logger.info(f"🔍 TEST RESULT: {result}")
         
         return {
             "success": True,
-            "stats": stats,
+            "message": "Test completed",
+            "result": result,
+            "twitter_available": TWITTER_POSTER_AVAILABLE,
             "timestamp": datetime.now().isoformat()
         }
         
     except Exception as e:
-        logger.error(f"❌ Error getting posting stats: {e}")
+        logger.error(f"❌ Error in test: {e}")
+        import traceback
+        logger.error(f"❌ Full traceback: {traceback.format_exc()}")
         return {
             "success": False,
             "error": str(e),
+            "traceback": traceback.format_exc(),
             "timestamp": datetime.now().isoformat()
         }
     
