@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 import logging
+import sys
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -34,9 +36,42 @@ async def preflight_handler(rest_of_path: str):
         }
     )
 
+def setup_reply_functions():
+    """Setup reply generation functions with error handling"""
+    global generate_reply
+    
+    try:
+        # Add current directory to path
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        if current_dir not in sys.path:
+            sys.path.insert(0, current_dir)
+        
+        # Try to import the actual reply generator
+        from src.reply_generator import generate_reply as actual_generate_reply
+        generate_reply = actual_generate_reply
+        logger.info("✅ Successfully imported actual LLM reply generator")
+        
+        # Quick test
+        test_result = generate_reply("test tweet", "test_user")
+        logger.info(f"✅ LLM test successful: {str(test_result)[:50]}...")
+        
+        return True
+        
+    except ImportError as e:
+        logger.warning(f"⚠️ Could not import reply_generator: {e}")
+        logger.info("🔄 Using dummy reply function")
+        return False
+    except Exception as e:
+        logger.error(f"❌ Error testing reply generator: {e}")
+        logger.info("🔄 Using dummy reply function")
+        return False
+
 # Dummy reply function for now
 def generate_reply(tweet_text, tweet_author=None, conversation_history=None):
     return {"content": "Thanks for sharing! Great Pokemon TCG content.", "success": True}
+
+# Try to setup real reply generation
+reply_setup_success = setup_reply_functions()
 
 def post_reply_tweet(content, reply_to_id):
     return {"success": False, "error": "Reply integration not available"}
@@ -154,6 +189,34 @@ async def create_posting_job(request: Dict[str, Any]):
         "stats": {"postsToday": 0, "repliesToday": 0, "successRate": 100.0}
     }
     return {"success": True, "job": job, "message": "Job created"}
+
+@app.get("/api/test-reply-generation")
+async def test_reply_generation():
+    """Test if reply generation is working"""
+    try:
+        test_tweet = "Just pulled a Charizard card from my Pokemon TCG pack! So excited!"
+        test_result = generate_reply(test_tweet, "TestUser")
+        
+        is_dummy = (
+            isinstance(test_result, dict) and 
+            test_result.get("content", "").startswith("Thanks for sharing! Great Pokemon TCG content")
+        )
+        
+        return {
+            "success": True,
+            "using_real_llm": not is_dummy,
+            "test_input": test_tweet,
+            "test_output": test_result,
+            "setup_success": reply_setup_success,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 if __name__ == "__main__":
     import uvicorn
