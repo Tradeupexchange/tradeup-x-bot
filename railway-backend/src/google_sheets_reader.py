@@ -1,6 +1,7 @@
 """
 Google Sheets reader for TradeUp X Engager.
 Reads tweet data from public Google Sheets for reply generation.
+Modified to read from LAST entries first (most recent tweets).
 """
 
 import requests
@@ -72,13 +73,14 @@ def extract_username_from_url(url: str) -> Optional[str]:
         return match.group(1)
     return None
 
-def get_tweets_from_sheet(sheet_url: str, max_tweets: int = 50) -> List[Dict]:
+def get_tweets_from_sheet(sheet_url: str, max_tweets: int = 50, reverse_order: bool = True) -> List[Dict]:
     """
     Get tweets from a public Google Sheet using direct CSV export.
     
     Args:
         sheet_url: URL of the Google Sheet
         max_tweets: Maximum number of tweets to read
+        reverse_order: If True, reads from last entries first (most recent)
         
     Returns:
         List of tweet data dictionaries compatible with FastAPI format
@@ -96,6 +98,8 @@ def get_tweets_from_sheet(sheet_url: str, max_tweets: int = 50) -> List[Dict]:
         csv_export_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
         
         logging.info(f"📊 Fetching data from Google Sheet: {sheet_id}")
+        if reverse_order:
+            logging.info(f"🔄 Reading from LAST entries first (most recent tweets)")
         
         # Fetch CSV data
         response = requests.get(csv_export_url, timeout=10)
@@ -135,16 +139,28 @@ def get_tweets_from_sheet(sheet_url: str, max_tweets: int = 50) -> List[Dict]:
         
         logging.info(f"🎯 Using columns - Tweet: {tweet_idx}, Date: {date_idx}, Username: {username_idx}, URL: {url_idx}")
         
-        # Process data rows
-        count = 0
+        # Read ALL data rows first
+        all_rows = []
         for row_num, row in enumerate(reader, start=2):  # Start at 2 since we already read headers
-            if count >= max_tweets:
-                break
-                
             if len(row) <= tweet_idx or not row[tweet_idx].strip():
                 logging.debug(f"Skipping row {row_num}: insufficient columns or empty tweet")
                 continue
             
+            all_rows.append((row_num, row))
+        
+        logging.info(f"📊 Found {len(all_rows)} valid rows in sheet")
+        
+        # REVERSE the order if requested (most recent first)
+        if reverse_order:
+            all_rows = list(reversed(all_rows))
+            logging.info(f"🔄 Reversed order - now processing from most recent entries")
+        
+        # Process the rows (now in the desired order)
+        count = 0
+        for row_num, row in all_rows:
+            if count >= max_tweets:
+                break
+                
             tweet_content = row[tweet_idx].strip()
             
             # Create tweet data in FastAPI-compatible format
@@ -190,7 +206,10 @@ def get_tweets_from_sheet(sheet_url: str, max_tweets: int = 50) -> List[Dict]:
             
             logging.debug(f"✅ Processed tweet {count}: {tweet_content[:50]}...")
         
-        logging.info(f"✅ Successfully read {len(tweets)} tweets from Google Sheet")
+        if reverse_order:
+            logging.info(f"✅ Successfully read {len(tweets)} tweets from Google Sheet (most recent first)")
+        else:
+            logging.info(f"✅ Successfully read {len(tweets)} tweets from Google Sheet (chronological order)")
         
     except requests.exceptions.RequestException as e:
         logging.error(f"❌ Network error reading Google Sheet: {e}")
@@ -199,19 +218,20 @@ def get_tweets_from_sheet(sheet_url: str, max_tweets: int = 50) -> List[Dict]:
     
     return tweets
 
-def get_tweets_for_reply(sheet_url: str, num_tweets: int = 5) -> List[Dict]:
+def get_tweets_for_reply(sheet_url: str, num_tweets: int = 5, reverse_order: bool = True) -> List[Dict]:
     """
     Get a selection of tweets from the Google Sheet that are suitable for replying to.
     
     Args:
         sheet_url: URL of the Google Sheet
         num_tweets: Number of tweets to select for reply
+        reverse_order: If True, prioritizes most recent tweets
         
     Returns:
         List of tweet data dictionaries with URLs in FastAPI format
     """
-    # Get all tweets from the sheet
-    all_tweets = get_tweets_from_sheet(sheet_url, max_tweets=100)  # Get more tweets for better selection
+    # Get all tweets from the sheet (with reverse order)
+    all_tweets = get_tweets_from_sheet(sheet_url, max_tweets=100, reverse_order=reverse_order)
     
     if not all_tweets:
         logging.warning("⚠️ No tweets found in the sheet")
@@ -221,7 +241,7 @@ def get_tweets_for_reply(sheet_url: str, num_tweets: int = 5) -> List[Dict]:
     tweets_with_urls = []
     for tweet in all_tweets:
         # Check if tweet has the necessary info for replying
-        has_id = tweet.get("id") and tweet["id"] != f"sheet_tweet_{tweet.get('index', '')}"
+        has_id = tweet.get("id") and not tweet["id"].startswith("sheet_tweet_")
         has_url = tweet.get("url")
         
         if has_id or has_url:
@@ -237,15 +257,50 @@ def get_tweets_for_reply(sheet_url: str, num_tweets: int = 5) -> List[Dict]:
                 tweet["url"] = f"https://twitter.com/{tweet['author']}/status/{tweet['id']}"
         return selected_tweets
     
-    # If we have fewer tweets with URLs than requested, return all of them
+    # If reverse_order is True, we already have the most recent tweets first
+    # So we can just take the first N tweets
     if len(tweets_with_urls) <= num_tweets:
         selected_tweets = tweets_with_urls
     else:
-        # Randomly select the requested number of tweets
-        selected_tweets = random.sample(tweets_with_urls, num_tweets)
+        if reverse_order:
+            # Take the first N (which are the most recent due to reverse order)
+            selected_tweets = tweets_with_urls[:num_tweets]
+        else:
+            # Randomly select if not prioritizing recent tweets
+            selected_tweets = random.sample(tweets_with_urls, num_tweets)
     
-    logging.info(f"🎲 Selected {len(selected_tweets)} tweets for reply generation")
+    if reverse_order:
+        logging.info(f"🎲 Selected {len(selected_tweets)} most recent tweets for reply generation")
+    else:
+        logging.info(f"🎲 Selected {len(selected_tweets)} random tweets for reply generation")
+    
     return selected_tweets
+
+def get_tweets_from_sheet_chronological(sheet_url: str, max_tweets: int = 50) -> List[Dict]:
+    """
+    Convenience function to get tweets in chronological order (oldest first).
+    
+    Args:
+        sheet_url: URL of the Google Sheet
+        max_tweets: Maximum number of tweets to read
+        
+    Returns:
+        List of tweet data dictionaries in chronological order
+    """
+    return get_tweets_from_sheet(sheet_url, max_tweets, reverse_order=False)
+
+def get_tweets_from_sheet_recent_first(sheet_url: str, max_tweets: int = 50) -> List[Dict]:
+    """
+    Convenience function to get tweets with most recent first.
+    
+    Args:
+        sheet_url: URL of the Google Sheet
+        max_tweets: Maximum number of tweets to read
+        
+    Returns:
+        List of tweet data dictionaries with most recent first
+    """
+    return get_tweets_from_sheet(sheet_url, max_tweets, reverse_order=True)
 
 def test_sheet_connection(sheet_url: str) -> Dict:
     """
@@ -258,13 +313,14 @@ def test_sheet_connection(sheet_url: str) -> Dict:
         Dictionary with connection test results
     """
     try:
-        tweets = get_tweets_from_sheet(sheet_url, max_tweets=5)
+        # Test with reverse order (most recent first)
+        tweets = get_tweets_from_sheet(sheet_url, max_tweets=5, reverse_order=True)
         
         result = {
             "success": True,
             "tweets_found": len(tweets),
             "sample_tweets": tweets[:3] if tweets else [],
-            "message": f"Successfully connected to Google Sheet. Found {len(tweets)} tweets."
+            "message": f"Successfully connected to Google Sheet. Found {len(tweets)} tweets (showing most recent first)."
         }
         
         if not tweets:
@@ -290,7 +346,7 @@ if __name__ == "__main__":
     print(f"Test result: {test_result}")
     
     if test_result["success"]:
-        print(f"\n📊 Retrieved {test_result['tweets_found']} tweets from Google Sheet")
+        print(f"\n📊 Retrieved {test_result['tweets_found']} tweets from Google Sheet (most recent first)")
         for i, tweet in enumerate(test_result["sample_tweets"]):
             print(f"Tweet {i+1}: {tweet.get('text', 'No content')[:100]}...")
             if tweet.get('url'):
@@ -298,14 +354,21 @@ if __name__ == "__main__":
             if tweet.get('author'):
                 print(f"  Author: @{tweet['author']}")
         
-        # Test getting tweets for reply
-        print(f"\n🎯 Testing reply tweet selection...")
-        reply_tweets = get_tweets_for_reply(sheet_url, 3)
-        print(f"Selected {len(reply_tweets)} tweets for reply:")
+        # Test getting tweets for reply (most recent first)
+        print(f"\n🎯 Testing reply tweet selection (most recent first)...")
+        reply_tweets = get_tweets_for_reply(sheet_url, 3, reverse_order=True)
+        print(f"Selected {len(reply_tweets)} most recent tweets for reply:")
         for i, tweet in enumerate(reply_tweets):
             print(f"Reply Tweet {i+1}: {tweet.get('text', 'No content')[:80]}...")
             print(f"  URL: {tweet.get('url', 'No URL')}")
             print(f"  ID: {tweet.get('id', 'No ID')}")
             print(f"  Author: @{tweet.get('author', 'unknown')}")
+            
+        # Test chronological order as well
+        print(f"\n📈 Testing chronological order (oldest first)...")
+        chrono_tweets = get_tweets_from_sheet_chronological(sheet_url, 3)
+        print(f"Selected {len(chrono_tweets)} tweets in chronological order:")
+        for i, tweet in enumerate(chrono_tweets):
+            print(f"Chrono Tweet {i+1}: {tweet.get('text', 'No content')[:80]}...")
     else:
         print(f"❌ Connection test failed: {test_result['message']}")
