@@ -907,6 +907,33 @@ async def test_real_twitter_post():
             "traceback": traceback.format_exc(),
             "timestamp": datetime.now().isoformat()
         }
+
+@app.get("/api/debug-twitter-config")
+async def debug_twitter_config():
+    """Debug Twitter configuration in twitter_poster.py"""
+    try:
+        # Import config from the same place twitter_poster.py does
+        from src.config import TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET
+        
+        return {
+            "success": True,
+            "config_check": {
+                "TWITTER_API_KEY": bool(TWITTER_API_KEY) and len(TWITTER_API_KEY) > 10 if TWITTER_API_KEY else False,
+                "TWITTER_API_SECRET": bool(TWITTER_API_SECRET) and len(TWITTER_API_SECRET) > 10 if TWITTER_API_SECRET else False,
+                "TWITTER_ACCESS_TOKEN": bool(TWITTER_ACCESS_TOKEN) and len(TWITTER_ACCESS_TOKEN) > 10 if TWITTER_ACCESS_TOKEN else False,
+                "TWITTER_ACCESS_SECRET": bool(TWITTER_ACCESS_SECRET) and len(TWITTER_ACCESS_SECRET) > 10 if TWITTER_ACCESS_SECRET else False,
+            },
+            "config_source": "src.config",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error checking config: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
     
 # Add this debug endpoint to your main.py to diagnose the issue:
 
