@@ -45,6 +45,7 @@ get_tweets_for_reply = None
 get_tweets_from_sheet = None
 test_sheet_connection = None
 
+#TRY GOOGLE SHEETS ACCESS
 try:
     # First try from src directory
     from src.google_sheets_reader import get_tweets_for_reply, get_tweets_from_sheet, test_sheet_connection
@@ -63,6 +64,30 @@ except ImportError:
 except Exception as e:
     logger.error(f"❌ Error importing Google Sheets reader: {e}")
     GOOGLE_SHEETS_AVAILABLE = False
+
+#TRY TWITTER API SETUP
+try:
+    # Try to import from src directory first
+    from src.twitter_poster import post_reply_tweet, post_original_tweet, test_twitter_connection, get_posting_stats
+    TWITTER_POSTER_AVAILABLE = True
+    logger.info("✅ Twitter poster imported successfully from src/")
+except ImportError:
+    try:
+        # Fallback to current directory
+        from twitter_poster import post_reply_tweet, post_original_tweet, test_twitter_connection, get_posting_stats
+        TWITTER_POSTER_AVAILABLE = True
+        logger.info("✅ Twitter poster imported successfully from current directory")
+    except ImportError as e:
+        logger.warning(f"⚠️ Twitter poster not available: {e}")
+        logger.info("🔄 Will use simulated posting instead")
+        TWITTER_POSTER_AVAILABLE = False
+        post_reply_tweet = None
+        post_original_tweet = None
+        test_twitter_connection = None
+        get_posting_stats = None
+except Exception as e:
+    logger.error(f"❌ Error importing Twitter poster: {e}")
+    TWITTER_POSTER_AVAILABLE = False
 
 # Setup reply generation functions
 def setup_reply_functions():
@@ -637,7 +662,7 @@ async def generate_replies_batch():
     
 @app.post("/api/post-reply-with-tracking")
 async def post_reply_with_tracking(request: Dict[str, Any]):
-    """Post a reply to Twitter with tracking (placeholder implementation)"""
+    """Post a reply to Twitter with real Twitter API integration"""
     try:
         content = request.get("content", "")
         reply_to_tweet_id = request.get("reply_to_tweet_id", "")
@@ -645,37 +670,313 @@ async def post_reply_with_tracking(request: Dict[str, Any]):
         logger.info(f"📤 Attempting to post reply to tweet {reply_to_tweet_id}")
         logger.info(f"📝 Reply content: {content[:100]}...")
         
-        # TODO: Implement actual Twitter API posting here
-        # For now, we'll simulate the posting
-        
-        # Simulate success (you'll need to implement actual Twitter API integration)
-        success = True  # Change this when you implement real Twitter API
-        
-        if success:
-            # Generate a mock tweet ID for the reply
+        if not TWITTER_POSTER_AVAILABLE:
+            logger.warning("🔄 Twitter poster not available, using simulation")
+            # Fallback to simulation
             import time
-            mock_reply_id = f"reply_{int(time.time())}"
-            
-            logger.info(f"✅ Successfully 'posted' reply (simulated) with ID: {mock_reply_id}")
+            mock_reply_id = f"sim_reply_{int(time.time())}"
             
             return {
                 "success": True,
                 "tweet_id": mock_reply_id,
-                "message": "Reply posted successfully (simulated)",
+                "message": "Reply posted successfully (simulated - Twitter poster not available)",
                 "reply_url": f"https://twitter.com/TradeUpApp/status/{mock_reply_id}",
                 "original_tweet_id": reply_to_tweet_id,
                 "content": content,
+                "simulated": True,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        if not content or not reply_to_tweet_id:
+            return {
+                "success": False,
+                "error": "Missing content or reply_to_tweet_id",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Use real Twitter API
+        logger.info("🐦 Using real Twitter API to post reply...")
+        result = post_reply_tweet(content, reply_to_tweet_id)
+        
+        if result.get("success"):
+            logger.info(f"✅ Successfully posted reply with ID: {result.get('tweet_id')}")
+            
+            return {
+                "success": True,
+                "tweet_id": result.get("tweet_id"),
+                "message": "Reply posted successfully to Twitter",
+                "reply_url": result.get("url", f"https://twitter.com/TradeUpApp/status/{result.get('tweet_id')}"),
+                "original_tweet_id": reply_to_tweet_id,
+                "content": content,
+                "posted_at": result.get("posted_at"),
+                "simulated": False,
                 "timestamp": datetime.now().isoformat()
             }
         else:
+            logger.error(f"❌ Failed to post reply: {result.get('error')}")
+            
             return {
                 "success": False,
-                "error": "Failed to post to Twitter",
+                "error": result.get("error", "Unknown Twitter API error"),
+                "rate_limited": result.get("rate_limited", False),
                 "timestamp": datetime.now().isoformat()
             }
         
     except Exception as e:
         logger.error(f"❌ Error in post_reply_with_tracking: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.post("/api/post-tweet")
+async def post_tweet(request: Dict[str, Any]):
+    """Post a new tweet with real Twitter API integration"""
+    try:
+        content = request.get("content", "")
+        
+        logger.info(f"📤 Attempting to post new tweet")
+        logger.info(f"📝 Tweet content: {content[:100]}...")
+        
+        if not TWITTER_POSTER_AVAILABLE:
+            logger.warning("🔄 Twitter poster not available, using simulation")
+            # Fallback to simulation
+            import time
+            mock_tweet_id = f"sim_tweet_{int(time.time())}"
+            
+            return {
+                "success": True,
+                "tweet_id": mock_tweet_id,
+                "message": "Tweet posted successfully (simulated - Twitter poster not available)",
+                "tweet_url": f"https://twitter.com/TradeUpApp/status/{mock_tweet_id}",
+                "content": content,
+                "simulated": True,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        if not content:
+            return {
+                "success": False,
+                "error": "Missing tweet content",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Use real Twitter API
+        logger.info("🐦 Using real Twitter API to post tweet...")
+        result = post_original_tweet(content)
+        
+        if result.get("success"):
+            logger.info(f"✅ Successfully posted tweet with ID: {result.get('tweet_id')}")
+            
+            return {
+                "success": True,
+                "tweet_id": result.get("tweet_id"),
+                "message": "Tweet posted successfully to Twitter",
+                "tweet_url": result.get("url", f"https://twitter.com/TradeUpApp/status/{result.get('tweet_id')}"),
+                "content": content,
+                "posted_at": result.get("posted_at"),
+                "simulated": False,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            logger.error(f"❌ Failed to post tweet: {result.get('error')}")
+            
+            return {
+                "success": False,
+                "error": result.get("error", "Unknown Twitter API error"),
+                "rate_limited": result.get("rate_limited", False),
+                "timestamp": datetime.now().isoformat()
+            }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in post_tweet: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.get("/api/twitter-status")
+async def get_twitter_status():
+    """Check real Twitter API connection status"""
+    try:
+        if not TWITTER_POSTER_AVAILABLE:
+            return {
+                "success": False,
+                "connected": False,
+                "status": "twitter_poster_not_available",
+                "message": "Twitter poster module not available - check if twitter_poster.py exists and imports correctly",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        logger.info("🔍 Testing Twitter API connection...")
+        connection_test = test_twitter_connection()
+        
+        if connection_test.get("success"):
+            # Get posting stats
+            stats = get_posting_stats()
+            
+            return {
+                "success": True,
+                "connected": True,
+                "status": "connected",
+                "message": "Twitter API connection successful",
+                "user": connection_test.get("user", {}),
+                "posting_stats": stats,
+                "rate_limit_info": {
+                    "can_post_now": stats.get("can_post_now", True),
+                    "min_interval_seconds": stats.get("min_interval_seconds", 60),
+                    "time_since_last_post": stats.get("time_since_last_post")
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "success": False,
+                "connected": False,
+                "status": "connection_failed",
+                "message": f"Twitter API connection failed: {connection_test.get('error')}",
+                "error": connection_test.get("error"),
+                "rate_limited": connection_test.get("rate_limited", False),
+                "timestamp": datetime.now().isoformat()
+            }
+        
+    except Exception as e:
+        logger.error(f"❌ Error checking Twitter status: {e}")
+        return {
+            "success": False,
+            "connected": False,
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.get("/api/twitter-posting-stats")
+async def get_twitter_posting_stats():
+    """Get Twitter posting statistics and rate limit info"""
+    try:
+        if not TWITTER_POSTER_AVAILABLE:
+            return {
+                "success": False,
+                "message": "Twitter poster not available",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        stats = get_posting_stats()
+        
+        return {
+            "success": True,
+            "stats": stats,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting posting stats: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+# Add a new endpoint for batch reply posting (for the approval workflow)
+@app.post("/api/post-replies-batch")
+async def post_replies_batch(request: Dict[str, Any]):
+    """Post multiple approved replies to Twitter"""
+    try:
+        replies = request.get("replies", [])
+        
+        if not replies:
+            return {
+                "success": False,
+                "error": "No replies provided",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        logger.info(f"📤 Batch posting {len(replies)} replies to Twitter...")
+        
+        results = []
+        success_count = 0
+        
+        for i, reply_data in enumerate(replies):
+            try:
+                content = reply_data.get("content", "")
+                tweet_id = reply_data.get("tweet_id", "")
+                
+                if not content or not tweet_id:
+                    logger.warning(f"Skipping reply {i+1}: missing content or tweet_id")
+                    results.append({
+                        "success": False,
+                        "error": "Missing content or tweet_id",
+                        "original_data": reply_data
+                    })
+                    continue
+                
+                logger.info(f"📝 Posting reply {i+1}/{len(replies)} to tweet {tweet_id}")
+                
+                if TWITTER_POSTER_AVAILABLE:
+                    # Use real Twitter API
+                    result = post_reply_tweet(content, tweet_id)
+                    
+                    if result.get("success"):
+                        success_count += 1
+                        results.append({
+                            "success": True,
+                            "tweet_id": result.get("tweet_id"),
+                            "reply_url": result.get("url"),
+                            "content": content,
+                            "original_tweet_id": tweet_id,
+                            "posted_at": result.get("posted_at")
+                        })
+                        logger.info(f"✅ Successfully posted reply {i+1}")
+                    else:
+                        results.append({
+                            "success": False,
+                            "error": result.get("error"),
+                            "rate_limited": result.get("rate_limited", False),
+                            "content": content,
+                            "original_tweet_id": tweet_id
+                        })
+                        logger.error(f"❌ Failed to post reply {i+1}: {result.get('error')}")
+                else:
+                    # Simulation mode
+                    import time
+                    mock_id = f"sim_batch_reply_{int(time.time())}_{i}"
+                    success_count += 1
+                    results.append({
+                        "success": True,
+                        "tweet_id": mock_id,
+                        "reply_url": f"https://twitter.com/TradeUpApp/status/{mock_id}",
+                        "content": content,
+                        "original_tweet_id": tweet_id,
+                        "simulated": True
+                    })
+                    logger.info(f"✅ Simulated posting reply {i+1}")
+                
+                # Small delay between posts to avoid rate limits
+                if i < len(replies) - 1:  # Don't sleep after the last one
+                    time.sleep(2)
+                    
+            except Exception as e:
+                logger.error(f"❌ Error posting reply {i+1}: {e}")
+                results.append({
+                    "success": False,
+                    "error": str(e),
+                    "original_data": reply_data
+                })
+        
+        return {
+            "success": True,
+            "total_processed": len(replies),
+            "successful_posts": success_count,
+            "failed_posts": len(replies) - success_count,
+            "results": results,
+            "twitter_available": TWITTER_POSTER_AVAILABLE,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in batch reply posting: {e}")
         return {
             "success": False,
             "error": str(e),
