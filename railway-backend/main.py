@@ -422,68 +422,85 @@ async def get_bot_status():
         }
 
 # ===== MISSING ENDPOINT 2: Posts =====
+# REPLACE your existing /api/posts endpoint (around line 390) with this enhanced version:
+
 @app.get("/api/posts")
 async def get_posts():
-    """Get recent posts"""
+
+# ADD this new endpoint after your existing /api/post-reply endpoint:
+
+# Global variable to store recent replies (in production, use a database)
+recent_replies = []
+
+@app.post("/api/post-reply-with-tracking")
+async def post_reply_with_tracking(request: PostReplyRequest):
+    """Post a reply and track it for the Recent Posts section"""
+    global recent_replies
+    
     try:
-        logger.info("Getting recent posts...")
+        logger.info(f"Posting tracked reply to tweet {request.reply_to_tweet_id}: {request.content[:50]}...")
         
-        # Mock posts data - replace with your actual posts logic
-        posts = [
-            {
-                "id": "post_1",
-                "content": "Just pulled an amazing Charizard card! The artwork is incredible 🔥",
+        # Post reply using twitter_poster module
+        result = post_reply_tweet(request.content, request.reply_to_tweet_id)
+        
+        if isinstance(result, dict) and result.get('success'):
+            logger.info(f"Successfully posted reply to tweet {request.reply_to_tweet_id}")
+            
+            # Track this reply for Recent Posts
+            reply_data = {
+                "id": f"reply_{int(datetime.now().timestamp())}",
+                "content": request.content,
                 "timestamp": datetime.now().isoformat(),
                 "platform": "twitter",
+                "type": "reply",
+                "original_tweet_id": request.reply_to_tweet_id,
                 "engagement": {
-                    "likes": 42,
-                    "retweets": 12,
-                    "replies": 8
+                    "likes": 0,
+                    "retweets": 0,
+                    "replies": 0
                 },
-                "status": "posted"
-            },
-            {
-                "id": "post_2", 
-                "content": "Building a new deck around Pikachu VMAX. Any suggestions for support cards?",
-                "timestamp": (datetime.now() - timedelta(hours=2)).isoformat(),
-                "platform": "twitter",
-                "engagement": {
-                    "likes": 28,
-                    "retweets": 5,
-                    "replies": 15
-                },
-                "status": "posted"
-            },
-            {
-                "id": "post_3",
-                "content": "The new Pokemon TCG set releases tomorrow! Who else is excited? 🎉",
-                "timestamp": (datetime.now() - timedelta(hours=4)).isoformat(),
-                "platform": "twitter", 
-                "engagement": {
-                    "likes": 67,
-                    "retweets": 23,
-                    "replies": 12
-                },
-                "status": "posted"
+                "status": "posted",
+                "tweet_url": f"https://twitter.com/TradeUpApp/status/{result.get('tweet_id')}",
+                "original_tweet_url": f"https://twitter.com/i/status/{request.reply_to_tweet_id}"
             }
-        ]
+            
+            # Add to recent replies (keep only last 50)
+            recent_replies.insert(0, reply_data)
+            recent_replies = recent_replies[:50]
+            
+            result['timestamp'] = datetime.now().isoformat()
+            result['tracked'] = True
+        else:
+            logger.error(f"Failed to post reply: {result.get('error') if isinstance(result, dict) else 'Unknown error'}")
+            if not isinstance(result, dict):
+                result = {"success": False, "error": "Reply posting failed"}
+            result['timestamp'] = datetime.now().isoformat()
+            result['tracked'] = False
         
-        logger.info(f"Returning {len(posts)} recent posts")
-        return {
-            "success": True,
-            "posts": posts,
-            "total": len(posts),
-            "timestamp": datetime.now().isoformat()
-        }
+        return result
         
     except Exception as e:
-        logger.error(f"Error getting posts: {e}")
+        logger.error(f"Error posting tracked reply: {e}")
         return {
             "success": False,
             "error": str(e),
-            "posts": [],
+            "tweet_id": None,
+            "tracked": False,
             "timestamp": datetime.now().isoformat()
         }
+
+# ADD this endpoint to get recent replies:
+@app.get("/api/recent-replies")
+async def get_recent_replies():
+    """Get recent replies that were posted"""
+    global recent_replies
+    
+    return {
+        "success": True,
+        "replies": recent_replies,
+        "total": len(recent_replies),
+        "timestamp": datetime.now().isoformat()
+    }
 
 # ===== MISSING ENDPOINT 3: Topics =====
 @app.get("/api/topics")

@@ -412,7 +412,7 @@ const BotControl: React.FC = () => {
           try {
             console.log(`📤 Posting reply to tweet ${reply.tweetId}...`);
             
-            const postResult = await apiCall('/api/post-reply', {
+            const postResult = await apiCall('/api/post-reply-with-tracking', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
