@@ -1,5 +1,5 @@
 # Add these imports at the top with your other imports
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -18,30 +18,88 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://tradeup-bot-engagement-dashboard.netlify.app",
-        "http://localhost:3000",  # For local development
-        "http://localhost:5173",  # For Vite dev server
+        "https://tradeup-bot-engageme*.netlify.app",  # Wildcard for Netlify previews
+        "http://localhost:3000",
+        "http://localhost:5173",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
+        "*"  # Temporary - remove this after testing
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
+
+@app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    response = await call_next(request)
+    origin = request.headers.get("origin")
+    
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+    
+    return response
 
 # Add preflight handler for OPTIONS requests
 @app.options("/{rest_of_path:path}")
-async def preflight_handler(rest_of_path: str):
+async def preflight_handler(request: Request, rest_of_path: str):
+    origin = request.headers.get("origin")
+    
     return JSONResponse(
         content={},
         headers={
-            "Access-Control-Allow-Origin": "https://tradeup-bot-engagement-dashboard.netlify.app",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Origin": origin or "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, HEAD",
             "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "86400"
         }
     )
 
+# CORS TESTING
+@app.get("/api/debug-cors")
+async def debug_cors():
+    """Debug CORS configuration"""
+    return {
+        "success": True,
+        "message": "CORS is working!",
+        "timestamp": datetime.now().isoformat(),
+        "headers_info": "If you can see this, CORS is configured correctly"
+    }
+
+@app.get("/api/debug-sheets-cors")
+async def debug_sheets_cors():
+    """Debug Google Sheets with CORS headers"""
+    try:
+        from src.google_sheets_reader import get_tweets_for_reply
+        
+        tweets_data = get_tweets_for_reply(
+            "https://docs.google.com/spreadsheets/d/1U50KjbsYUswh0IGWTPgeP97Y2kXRcYM_H1VoeyAQhpw/edit?gid=0#gid=0",
+            5
+        )
+        
+        return {
+            "success": True,
+            "tweets_found": len(tweets_data) if tweets_data else 0,
+            "sample_tweets": tweets_data[:2] if tweets_data else [],
+            "message": "Google Sheets integration working"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Google Sheets integration failed"
+        }
+
+
+## END CORS TESTING
+
 # ===== IMPROVED IMPORT SECTION WITH BETTER ERROR HANDLING =====
-ddef setup_reply_functions():
+def setup_reply_functions():
     """Setup reply generation functions with better error handling"""
     global generate_reply, post_reply_tweet, generate_and_post_replies
     
