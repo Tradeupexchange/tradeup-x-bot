@@ -1,816 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Square, RefreshCw, AlertCircle, CheckCircle, MessageSquare, Reply, Settings, Clock, Target, Eye, Check, X, Calendar, Plus, Trash2, Edit2, RotateCcw, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
-import { useApi, useNextRefreshTime, apiCall } from '../hooks/useApi';
-
-interface BotJob {
-  id: string;
-  name: string;
-  type: 'posting' | 'replying';
-  status: 'running' | 'stopped' | 'paused';
-  settings: any;
-  createdAt?: string;
-  lastRun?: string;
-  nextRun?: string;
-  scheduledPosts?: ScheduledPost[];
-  stats: {
-    postsToday: number;
-    repliesToday: number;
-    successRate: number;
-  };
-}
-
-interface ScheduledPost {
-  id: string;
-  content: string;
-  scheduledTime: string;
-  topic?: string;
-  hashtags?: string[];
-}
-
-interface BotStatus {
-  running: boolean;
-  uptime: string | null;
-  lastRun: string | null;
-  stats: {
-    postsToday: number;
-    repliesToday: number;
-    successRate: number;
-  };
-  jobs: BotJob[];
-  timestamp: string;
-}
-
-interface GeneratedContent {
-  id: string;
-  content: string;
-  type: 'post' | 'reply';
-  topic?: string;
-  originalTweet?: string;
-  tweetId?: string;
-  tweetAuthor?: string;
-  approved: boolean | null; // null = pending, true = approved, false = rejected
-  scheduledTime?: string;
-  engagement_score?: number;
-  hashtags?: string[];
-  mentions_tradeup?: boolean;
-  tweetIndex?: number; // Track which tweet from the sheet this is
-  autoPost?: boolean; // Flag for immediate posting after approval
-  originalTweetUrl?: string; // Direct link to original tweet
-}
-
-interface JobSettings {
-  postsPerDay?: number;
-  topics?: string[];
-  postingTimeStart?: string;
-  postingTimeEnd?: string;
-  postingDate?: string; // New field for date selection
-  contentTypes?: {
-    cardPulls: boolean;
-    deckBuilding: boolean;
-    marketAnalysis: boolean;
-    tournaments: boolean;
-  };
-  // Reply settings (simplified)
-  maxRepliesPerHour?: number;
-}
-
-interface PostedReply {
-  id: string;
-  content: string;
-  originalTweet: string;
-  tweetAuthor: string;
-  replyUrl: string;
-  originalTweetUrl: string;
-  postedAt: string;
-}
-
-interface BotControlProps {
-  onPostSuccess?: () => void;
-  onJobCreated?: () => void;
-}
-
-const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) => {
-  // Use the centralized useApi hook
-  const { data: status, loading, error, lastFetch, refetch } = useApi<BotStatus>('/api/bot-status');
-  
-  const [jobs, setJobs] = useState<BotJob[]>([]);
-  const [jobCounter, setJobCounter] = useState(1);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [showScheduler, setShowScheduler] = useState(false);
-  const [showContentApproval, setShowContentApproval] = useState(false);
-  const [generatedContent, setGeneratedContent] = useState<GeneratedContent[]>([]);
-  const [currentJobSettings, setCurrentJobSettings] = useState<JobSettings | null>(null);
-  const [editingJobId, setEditingJobId] = useState<string | null>(null);
-  const [editingJobName, setEditingJobName] = useState('');
-  const [apiError, setApiError] = useState<string | null>(null);
-  const [currentJobType, setCurrentJobType] = useState<'posting' | 'replying'>('posting');
-  const [postedReplies, setPostedReplies] = useState<PostedReply[]>([]);
-  const [showPostedReplies, setShowPostedReplies] = useState(false);
-  const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set());
-
-  // Update jobs when status changes (filter out demo jobs)
-  useEffect(() => {
-    if (status?.jobs && Array.isArray(status.jobs)) {
-      // Filter out demo jobs
-      const realJobs = status.jobs.filter(job => !job.id.includes('demo'));
-      setJobs(realJobs);
-      
-      // Update job counter based on existing jobs
-      const maxJobNumber = realJobs.reduce((max, job) => {
-        const jobNamePattern = /^Job #(\d+)$/;
-        const match = job.name?.match(jobNamePattern);
-        if (match) {
-          return Math.max(max, parseInt(match[1], 10));
-        }
-        return max;
-      }, 0);
-      setJobCounter(maxJobNumber + 1);
-      console.log('Updated jobs from API:', realJobs);
-    }
-  }, [status]);
-
-  const handleJobAction = async (jobId: string, action: 'start' | 'stop' | 'pause') => {
-    try {
-      setActionLoading(`${jobId}-${action}`);
-      setApiError(null);
-      console.log(`Performing ${action} on job ${jobId}`);
-      
-      const result = await apiCall(`/api/bot-job/${jobId}/${action}`, { 
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      console.log(`${action} result:`, result);
-      
-      // Wait a moment then refetch to get updated status
-      setTimeout(() => {
-        refetch();
-        setActionLoading(null);
-      }, 1000);
-    } catch (error) {
-      console.error(`Error ${action}ing job:`, error);
-      setApiError(`Failed to ${action} job: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setActionLoading(null);
-    }
-  };
-
-  const handleJobRename = async (jobId: string, newName: string) => {
-    try {
-      setApiError(null);
-      const result = await apiCall(`/api/bot-job/${jobId}/rename`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: newName })
-      });
-      
-      if (result.success) {
-        setJobs(prev => prev.map(job => 
-          job.id === jobId ? { ...job, name: newName } : job
-        ));
-        setEditingJobId(null);
-        setEditingJobName('');
-      }
-    } catch (error) {
-      console.error('Error renaming job:', error);
-      setApiError(`Failed to rename job: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
-
-  const generateScheduledTimes = (count: number, startTime: string, endTime: string): string[] => {
-    const times: string[] = [];
-    const [startHour, startMin] = startTime.split(':').map(Number);
-    const [endHour, endMin] = endTime.split(':').map(Number);
-    
-    const startMinutes = startHour * 60 + startMin;
-    const endMinutes = endHour * 60 + endMin;
-    const totalMinutes = endMinutes - startMinutes;
-    const interval = Math.floor(totalMinutes / count);
-    
-    for (let i = 0; i < count; i++) {
-      const postTime = startMinutes + (interval * i);
-      const hour = Math.floor(postTime / 60);
-      const minute = postTime % 60;
-      times.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
-    }
-    
-    return times;
-  };
-
-  const createJobWithApproval = async (jobSettings: JobSettings, jobName: string, jobType: 'posting' | 'replying') => {
-    try {
-      setActionLoading('generate-content');
-      setApiError(null);
-      console.log(`🧪 Creating ${jobType} job with approval workflow...`);
-
-      // Use provided name or generate automatic name
-      const finalJobName = jobName.trim() || `Job #${jobCounter}`;
-      if (!jobName.trim()) {
-        setJobCounter(prev => prev + 1);
-      }
-
-      let content: GeneratedContent[] = [];
-
-      if (jobType === 'posting') {
-        // Generate posts for approval
-        console.log('📝 Generating posts for approval...');
-        
-        for (let i = 0; i < (jobSettings.postsPerDay || 5); i++) {
-          const randomTopic = jobSettings.topics?.[Math.floor(Math.random() * jobSettings.topics.length)] || 'Pokemon TCG';
-          
-          const contentResult = await apiCall('/api/generate-content', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              topic: randomTopic,
-              count: 1
-            })
-          });
-
-          if (contentResult.success && contentResult.content) {
-            content.push({
-              id: `post-${Date.now()}-${i}`,
-              content: contentResult.content.content || contentResult.content,
-              type: 'post',
-              topic: randomTopic,
-              approved: null,
-              engagement_score: contentResult.content.engagement_score,
-              hashtags: contentResult.content.hashtags,
-              mentions_tradeup: contentResult.content.mentions_tradeup
-            });
-          }
-        }
-
-        // Generate scheduled times for posts
-        const scheduledTimes = generateScheduledTimes(
-          jobSettings.postsPerDay || 5,
-          jobSettings.postingTimeStart || '09:00',
-          jobSettings.postingTimeEnd || '17:00'
-        );
-
-        // Assign scheduled times to posts (with date if provided)
-        content.forEach((item, index) => {
-          const timeSlot = scheduledTimes[index];
-          if (jobSettings.postingDate) {
-            item.scheduledTime = `${jobSettings.postingDate} ${timeSlot}`;
-          } else {
-            item.scheduledTime = timeSlot;
-          }
-        });
-
-      } else if (jobType === 'replying') {
-        // Generate ALL replies at once instead of one by one
-        console.log('📝 Generating all replies for approval...');
-        
-        const numReplies = jobSettings.maxRepliesPerHour || 5;
-        
-        // Fetch tweets from Google Sheets
-        const tweetsResult = await apiCall('/api/fetch-tweets-from-sheets', {
-          method: 'GET'
-        });
-
-        if (!tweetsResult.success || !tweetsResult.tweets || tweetsResult.tweets.length === 0) {
-          setApiError('No tweets found in Google Sheets to reply to. Please check your Google Sheets setup.');
-          setActionLoading(null);
-          return;
-        }
-
-        // Generate replies for the requested number of tweets
-        const tweetsToProcess = tweetsResult.tweets.slice(0, numReplies);
-        
-        for (let i = 0; i < tweetsToProcess.length; i++) {
-          const tweet = tweetsToProcess[i];
-          
-          try {
-            const replyResult = await apiCall('/api/generate-reply', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                tweet_text: tweet.text,
-                tweet_author: tweet.author
-              })
-            });
-
-            if (replyResult.success && replyResult.reply) {
-              content.push({
-                id: `reply-${Date.now()}-${i}`,
-                content: replyResult.reply,
-                type: 'reply',
-                originalTweet: tweet.text,
-                tweetId: tweet.id,
-                tweetAuthor: tweet.author,
-                approved: null,
-                scheduledTime: 'On Approval',
-                tweetIndex: i,
-                autoPost: true,
-                originalTweetUrl: `https://twitter.com/${tweet.author}/status/${tweet.id}`
-              });
-            }
-          } catch (error) {
-            console.error(`Error generating reply for tweet ${i}:`, error);
-          }
-        }
-
-        if (content.length === 0) {
-          setApiError('Failed to generate any replies. Please try again.');
-          setActionLoading(null);
-          return;
-        }
-      }
-
-      setGeneratedContent(content);
-      setCurrentJobSettings({ ...jobSettings, name: finalJobName } as any);
-      setCurrentJobType(jobType);
-      setShowScheduler(false);
-      setShowContentApproval(true);
-
-    } catch (error) {
-      console.error('❌ Content generation failed:', error);
-      setApiError(`Failed to generate content: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const approveContent = (contentId: string) => {
-    setGeneratedContent(prev => 
-      prev.map(item => 
-        item.id === contentId ? { ...item, approved: true } : item
-      )
-    );
-  };
-
-  const regenerateContent = async (contentId: string) => {
-    try {
-      setActionLoading(`regenerate-${contentId}`);
-      setApiError(null);
-      const contentItem = generatedContent.find(c => c.id === contentId);
-      if (!contentItem) return;
-
-      if (contentItem.type === 'post') {
-        const contentResult = await apiCall('/api/generate-content', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            topic: contentItem.topic,
-            count: 1
-          })
-        });
-
-        if (contentResult.success && contentResult.content) {
-          setGeneratedContent(prev => 
-            prev.map(c => 
-              c.id === contentId 
-                ? {
-                    ...c,
-                    content: contentResult.content.content || contentResult.content,
-                    approved: null,
-                    engagement_score: contentResult.content.engagement_score,
-                    hashtags: contentResult.content.hashtags,
-                    mentions_tradeup: contentResult.content.mentions_tradeup
-                  }
-                : c
-            )
-          );
-        }
-      } else if (contentItem.type === 'reply') {
-        // For replies, regenerate a new reply to the same tweet
-        const replyResult = await apiCall('/api/generate-reply', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tweet_text: contentItem.originalTweet,
-            tweet_author: contentItem.tweetAuthor
-          })
-        });
-
-        if (replyResult.success && replyResult.reply) {
-          setGeneratedContent(prev => 
-            prev.map(c => 
-              c.id === contentId 
-                ? {
-                    ...c,
-                    content: replyResult.reply,
-                    approved: null
-                  }
-                : c
-            )
-          );
-        }
-      }
-    } catch (error) {
-      console.error('❌ Content regeneration failed:', error);
-      setApiError(`Failed to regenerate content: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const regenerateForDifferentTweet = async (contentId: string) => {
-    try {
-      setActionLoading(`regenerate-different-${contentId}`);
-      setApiError(null);
-      const contentItem = generatedContent.find(c => c.id === contentId);
-      if (!contentItem) return;
-
-      if (contentItem.type === 'reply') {
-        // For replies, get a different tweet from the sheets and generate a reply to that
-        const tweetsResult = await apiCall('/api/fetch-tweets-from-sheets', {
-          method: 'GET'
-        });
-
-        if (tweetsResult.success && tweetsResult.tweets && tweetsResult.tweets.length > 0) {
-          // Filter out the current tweet and pick a random different one
-          const differentTweets = tweetsResult.tweets.filter((tweet: any) => tweet.id !== contentItem.tweetId);
-          
-          if (differentTweets.length === 0) {
-            setApiError('No other tweets available to generate a different reply.');
-            setActionLoading(null);
-            return;
-          }
-
-          const randomTweet = differentTweets[Math.floor(Math.random() * differentTweets.length)];
-
-          const replyResult = await apiCall('/api/generate-reply', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              tweet_text: randomTweet.text,
-              tweet_author: randomTweet.author
-            })
-          });
-
-          if (replyResult.success && replyResult.reply) {
-            setGeneratedContent(prev => 
-              prev.map(c => 
-                c.id === contentId 
-                  ? {
-                      ...c,
-                      content: replyResult.reply,
-                      originalTweet: randomTweet.text,
-                      tweetId: randomTweet.id,
-                      tweetAuthor: randomTweet.author,
-                      originalTweetUrl: `https://twitter.com/${randomTweet.author}/status/${randomTweet.id}`,
-                      approved: null
-                    }
-                  : c
-              )
-            );
-          }
-        }
-      } else if (contentItem.type === 'post') {
-        // For posts, generate with a different topic
-        const availableTopics = (currentJobSettings as any)?.topics || ['Pokemon TCG', 'Card Pulls', 'Deck Building', 'Tournaments'];
-        const differentTopics = availableTopics.filter((topic: string) => topic !== contentItem.topic);
-        
-        if (differentTopics.length === 0) {
-          // If no different topics, just regenerate with the same topic
-          await regenerateContent(contentId);
-          return;
-        }
-
-        const randomTopic = differentTopics[Math.floor(Math.random() * differentTopics.length)];
-
-        const contentResult = await apiCall('/api/generate-content', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            topic: randomTopic,
-            count: 1
-          })
-        });
-
-        if (contentResult.success && contentResult.content) {
-          setGeneratedContent(prev => 
-            prev.map(c => 
-              c.id === contentId 
-                ? {
-                    ...c,
-                    content: contentResult.content.content || contentResult.content,
-                    topic: randomTopic,
-                    approved: null,
-                    engagement_score: contentResult.content.engagement_score,
-                    hashtags: contentResult.content.hashtags,
-                    mentions_tradeup: contentResult.content.mentions_tradeup
-                  }
-                : c
-            )
-          );
-        }
-      }
-    } catch (error) {
-      console.error('❌ Content regeneration for different item failed:', error);
-      setApiError(`Failed to regenerate content: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const scheduleApprovedContent = async () => {
-    try {
-      setActionLoading('schedule');
-      setApiError(null);
-      const approvedItems = generatedContent.filter(item => item.approved === true);
-      
-      if (approvedItems.length === 0) {
-        setApiError('Please approve at least one item before posting.');
-        return;
-      }
-
-      console.log(`📅 Processing approved ${currentJobType}...`, approvedItems);
-
-      if (currentJobType === 'replying') {
-        // For replies, post them immediately and collect results
-        console.log('🚀 Posting replies immediately...');
-        
-        let successCount = 0;
-        const postedRepliesData: PostedReply[] = [];
-
-        for (const reply of approvedItems) {
-          try {
-            console.log(`📤 Posting reply to tweet ${reply.tweetId}...`);
-            
-            const postResult = await apiCall('/api/post-reply-with-tracking', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                content: reply.content,
-                reply_to_tweet_id: reply.tweetId,
-                original_tweet_author: reply.tweetAuthor,
-                original_tweet_content: reply.originalTweet
-              })
-            });
-
-            console.log('🔍 FULL POST RESULT:', postResult);
-            console.log('🔍 POST RESULT SUCCESS:', postResult.success);
-            console.log('🔍 POST RESULT TYPE:', typeof postResult.success);
-
-            if (postResult.success) {
-              successCount++;
-              console.log('✅ Success! Count is now:', successCount);
-              
-              // Collect posted reply data for UI display
-              postedRepliesData.push({
-                id: postResult.tweet_id || `reply_${Date.now()}_${successCount}`,
-                content: reply.content,
-                originalTweet: reply.originalTweet || '',
-                tweetAuthor: reply.tweetAuthor || '',
-                replyUrl: postResult.tweet_url || `https://twitter.com/TradeUpApp/status/${postResult.tweet_id}`,
-                originalTweetUrl: reply.originalTweetUrl || `https://twitter.com/${reply.tweetAuthor}/status/${reply.tweetId}`,
-                postedAt: new Date().toISOString()
-              });
-              
-              console.log(`✅ Successfully posted reply to @${reply.tweetAuthor}`);
-            } else {
-              console.log('❌ postResult.success was false/undefined');
-              console.log('🔍 Actual value:', postResult.success);
-              console.error(`❌ Failed to post reply to @${reply.tweetAuthor}:`, postResult.error);
-            }
-          } catch (error) {
-            console.error(`❌ Error posting reply to @${reply.tweetAuthor}:`, error);
-          }
-        }
-
-        // Update UI to show posted replies instead of popup
-        if (successCount > 0) {
-          setPostedReplies(postedRepliesData);
-          setShowPostedReplies(true);
-          
-          // Call the refresh callback after successful posts
-          if (onPostSuccess) {
-            console.log('🔄 BotControl: Triggering post refresh after replies...');
-            setTimeout(() => {
-              onPostSuccess();
-            }, 2000);
-          }
-        } else {
-          setApiError('No replies were successfully posted. Please check your Twitter API connection.');
-        }
-
-        setShowContentApproval(false);
-        setGeneratedContent([]);
-
-      } else {
-        // For posts, create scheduled posts and add to jobs
-        const endpoint = '/api/bot-job/create-posting-job';
-
-        // Convert approved items to scheduled posts format
-        const scheduledPosts = approvedItems.map(item => ({
-          id: item.id,
-          content: item.content,
-          scheduledTime: item.scheduledTime || '',
-          topic: item.topic,
-          hashtags: item.hashtags || []
-        }));
-
-        const result = await apiCall(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: currentJobType,
-            name: (currentJobSettings as any)?.name || 'Untitled Job',
-            settings: {
-              ...currentJobSettings,
-              approvedContent: approvedItems,
-              autoPost: true
-            },
-            scheduledPosts: scheduledPosts
-          })
-        });
-
-        if (result.success) {
-          // Close the content approval modal without alert
-          setShowContentApproval(false);
-          setGeneratedContent([]);
-          
-          // Refresh the jobs list to show the new scheduled job
-          refetch();
-          
-          // Scroll to the Scheduled Posting Jobs section
-          setTimeout(() => {
-            const scheduledJobsSection = document.querySelector('[data-section="scheduled-jobs"]');
-            if (scheduledJobsSection) {
-              scheduledJobsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-          }, 500);
-        }
-      }
-
-    } catch (error) {
-      console.error('❌ Processing failed:', error);
-      setApiError(`Failed to process content: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const createNewJob = async (type: 'posting' | 'replying', settings: any, jobName: string) => {
-    try {
-      setActionLoading('create');
-      setApiError(null);
-      
-      // Use provided name or generate automatic name
-      const finalJobName = jobName.trim() || `Job #${jobCounter}`;
-      if (!jobName.trim()) {
-        setJobCounter(prev => prev + 1);
-      }
-      
-      console.log('Creating new job:', { type, settings, name: finalJobName });
-      
-      // Use the correct endpoint based on job type
-      const endpoint = type === 'posting' 
-        ? '/api/bot-job/create-posting-job'
-        : '/api/bot-job/create-reply-job';
-      
-      const result = await apiCall(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          type, 
-          settings, 
-          name: finalJobName,
-          // Add specific fields for reply jobs
-          ...(type === 'replying' && {
-            maxRepliesPerHour: settings.maxRepliesPerHour,
-            autoReply: false,
-            sentiment_filter: 'positive'
-          })
-        })
-      });
-      
-      console.log('Job creation result:', result);
-      
-      if (result.success) {
-        // Refetch status to get updated jobs list
-        refetch();
-        setShowScheduler(false);
-        alert(`${type} job created successfully!`);
-        
-        // Call the job created callback
-        if (onJobCreated) {
-          onJobCreated();
-        }
-      } else {
-        throw new Error(result.error || 'Job creation failed');
-      }
-      
-    } catch (error) {
-      console.error('Error creating job:', error);
-      setApiError(`Failed to create job: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  // Format date and time for display in PST
-  const formatDateTime = (dateTimeString: string | undefined): string => {
-    if (!dateTimeString) return 'Not scheduled';
-    
-    try {
-      const date = new Date(dateTimeString);
-      return date.toLocaleString('en-US', {
-        timeZone: 'America/Los_Angeles',
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      });
-    } catch (error) {
-      return 'Invalid date';
-    }
-  };
-
-  // Format time without seconds in PST
-  const formatTime = (timeString: string | undefined): string => {
-    if (!timeString) return 'Never';
-    
-    try {
-      const date = new Date(timeString);
-      return date.toLocaleTimeString('en-US', {
-        timeZone: 'America/Los_Angeles',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      });
-    } catch (error) {
-      return 'Invalid time';
-    }
-  };
-
-  // Get next scheduled post time for a job
-  const getNextPostTime = (job: BotJob): string => {
-    if (!job.scheduledPosts || job.scheduledPosts.length === 0) {
-      return formatDateTime(job.nextRun);
-    }
-    
-    // Find the next post that hasn't been posted yet
-    const now = new Date();
-    const nextPost = job.scheduledPosts
-      .filter(post => new Date(post.scheduledTime) > now)
-      .sort((a, b) => new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime())[0];
-    
-    return nextPost ? formatDateTime(nextPost.scheduledTime) : 'No upcoming posts';
-  };
-
-  const toggleJobExpansion = (jobId: string) => {
-    setExpandedJobs(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(jobId)) {
-        newSet.delete(jobId);
-      } else {
-        newSet.add(jobId);
-      }
-      return newSet;
-    });
-  };
-
-  // Posted Replies Modal Component
-  const PostedRepliesModal: React.FC<{
-    replies: PostedReply[];
-    onClose: () => void;
-  }> = ({ replies, onClose }) => {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[70]">
-        <div className="bg-white rounded-xl max-w-4xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-semibold text-gray-900">
-                Successfully Posted {replies.length} Replies
-              </h3>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <p className="text-sm text-gray-600 mt-2">
-              Your replies have been posted to Twitter. Click the links below to view them.
-            </p>
-          </div>
-
-          <div className="p-6 space-y-6">
-            {replies.map((reply, index) => (
-              <div key={reply.id} className="border-l-4 border-green-500 bg-green-50 rounded-lg p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center space-x-2">
-                    <span className="bg-green-100 text-green-800 px-2 py-1 text-xs font-medium rounded-full">
-                      Reply #{index + 1}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {new Date(reply.postedAt).toLocaleTimeString()}
-                    </span>
-                  </div>
-                  <div className="flex space-x-2">
-                    <a
-                      href={reply.originalTweetUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:text-blue-800 import React, { useState, useEffect } from 'react';
 import { Play, Square, RefreshCw, AlertCircle, CheckCircle, MessageSquare, Reply, Settings, Clock, Target, Eye, Check, X, Calendar, Plus, Trash2, Edit2, RotateCcw, ExternalLink } from 'lucide-react';
 import { useApi, useNextRefreshTime, apiCall } from '../hooks/useApi';
 
@@ -866,7 +54,6 @@ interface JobSettings {
   topics?: string[];
   postingTimeStart?: string;
   postingTimeEnd?: string;
-  postingDate?: string; // New field for date selection
   contentTypes?: {
     cardPulls: boolean;
     deckBuilding: boolean;
@@ -1053,14 +240,9 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
           jobSettings.postingTimeEnd || '17:00'
         );
 
-        // Assign scheduled times to posts (with date if provided)
+        // Assign scheduled times to posts
         content.forEach((item, index) => {
-          const timeSlot = scheduledTimes[index];
-          if (jobSettings.postingDate) {
-            item.scheduledTime = `${jobSettings.postingDate} ${timeSlot}`;
-          } else {
-            item.scheduledTime = timeSlot;
-          }
+          item.scheduledTime = scheduledTimes[index];
         });
 
       } else if (jobType === 'replying') {
@@ -1489,41 +671,6 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
     }
   };
 
-  // Format date and time for display
-  const formatDateTime = (dateTimeString: string | undefined): string => {
-    if (!dateTimeString) return 'Not scheduled';
-    
-    try {
-      const date = new Date(dateTimeString);
-      return date.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      });
-    } catch (error) {
-      return 'Invalid date';
-    }
-  };
-
-  // Format time without seconds
-  const formatTime = (timeString: string | undefined): string => {
-    if (!timeString) return 'Never';
-    
-    try {
-      const date = new Date(timeString);
-      return date.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      });
-    } catch (error) {
-      return 'Invalid time';
-    }
-  };
-
   // Posted Replies Modal Component
   const PostedRepliesModal: React.FC<{
     replies: PostedReply[];
@@ -1718,14 +865,14 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
         )}
       </div>
 
-      {/* Scheduled Posting Jobs */}
+      {/* Active Jobs */}
       <div className="bg-white rounded-xl p-6 shadow-sm">
-        <h4 className="text-lg font-semibold text-gray-900 mb-4">Scheduled Posting Jobs</h4>
+        <h4 className="text-lg font-semibold text-gray-900 mb-4">Active Jobs</h4>
         
         {jobs.length === 0 ? (
           <div className="text-center py-8">
             <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 mb-4">No scheduled jobs running</p>
+            <p className="text-gray-500 mb-4">No active jobs running</p>
             <p className="text-sm text-gray-400">Create a new job to get started with automated posting or replying</p>
           </div>
         ) : (
@@ -1741,8 +888,6 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
                 editingJobName={editingJobName}
                 setEditingJobId={setEditingJobId}
                 setEditingJobName={setEditingJobName}
-                formatDateTime={formatDateTime}
-                formatTime={formatTime}
               />
             ))}
           </div>
@@ -1810,18 +955,12 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
   const [newTopic, setNewTopic] = useState('');
   const [jobName, setJobName] = useState('');
   
-  // Get tomorrow's date as default
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const defaultDate = tomorrow.toISOString().split('T')[0];
-  
   const [settings, setSettings] = useState({
     // Posting settings
     postsPerDay: 5,
     topics: ['Pokemon TCG'],
     postingTimeStart: '09:00',
     postingTimeEnd: '17:00',
-    postingDate: defaultDate, // Default to tomorrow
     contentTypes: {
       cardPulls: true,
       deckBuilding: true,
@@ -1861,7 +1000,6 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
           topics: settings.topics,
           postingTimeStart: settings.postingTimeStart,
           postingTimeEnd: settings.postingTimeEnd,
-          postingDate: settings.postingDate,
           contentTypes: settings.contentTypes
         } : {
           maxRepliesPerHour: settings.maxRepliesPerHour
@@ -2009,7 +1147,7 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
   );
 };
 
-// Enhanced Posting Settings with topics management and date selection
+// Enhanced Posting Settings with topics management
 const EnhancedPostingSettings: React.FC<{
   settings: any;
   onChange: (settings: any) => void;
@@ -2043,24 +1181,12 @@ const EnhancedPostingSettings: React.FC<{
         </div>
       </div>
 
-      {/* Posting date and time range */}
+      {/* Posting time range */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Posting Schedule
+          Posting Hours
         </label>
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <label className="text-xs text-gray-500">Date</label>
-            <input
-              type="date"
-              value={settings.postingDate}
-              onChange={(e) => onChange({
-                ...settings,
-                postingDate: e.target.value
-              })}
-              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-xs text-gray-500">Start Time</label>
             <input
@@ -2086,9 +1212,6 @@ const EnhancedPostingSettings: React.FC<{
             />
           </div>
         </div>
-        <p className="text-xs text-gray-600 mt-2">
-          Posts will be scheduled evenly between the start and end times on the selected date.
-        </p>
       </div>
 
       {/* Topics */}
@@ -2488,8 +1611,6 @@ interface JobCardProps {
   editingJobName: string;
   setEditingJobId: (id: string | null) => void;
   setEditingJobName: (name: string) => void;
-  formatDateTime: (dateTime: string | undefined) => string;
-  formatTime: (time: string | undefined) => string;
 }
 
 const JobCard: React.FC<JobCardProps> = ({ 
@@ -2500,9 +1621,7 @@ const JobCard: React.FC<JobCardProps> = ({
   editingJobId,
   editingJobName,
   setEditingJobId,
-  setEditingJobName,
-  formatDateTime,
-  formatTime
+  setEditingJobName
 }) => {
   const isRunning = job.status === 'running';
   const isLoading = actionLoading?.startsWith(job.id);
@@ -2628,20 +1747,30 @@ const JobCard: React.FC<JobCardProps> = ({
         </div>
       </div>
 
-      {/* Job Details - Updated to remove Today's Count and Success Rate */}
+      {/* Job Details */}
       <div className="mt-4 pt-4 border-t border-gray-100">
-        <div className="grid grid-cols-2 gap-6 text-sm">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
             <span className="text-gray-500">Last Run:</span>
             <p className="font-medium">
-              {formatTime(job.lastRun)}
+              {job.lastRun ? new Date(job.lastRun).toLocaleTimeString() : 'Never'}
             </p>
           </div>
           <div>
-            <span className="text-gray-500">Next Scheduled Run:</span>
+            <span className="text-gray-500">Next Run:</span>
             <p className="font-medium">
-              {formatDateTime(job.nextRun)}
+              {job.nextRun ? new Date(job.nextRun).toLocaleTimeString() : 'Not scheduled'}
             </p>
+          </div>
+          <div>
+            <span className="text-gray-500">Today's Count:</span>
+            <p className="font-medium">
+              {job.type === 'posting' ? job.stats.postsToday : job.stats.repliesToday}
+            </p>
+          </div>
+          <div>
+            <span className="text-gray-500">Success Rate:</span>
+            <p className="font-medium">{job.stats.successRate}%</p>
           </div>
         </div>
       </div>
