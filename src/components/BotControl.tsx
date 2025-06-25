@@ -1961,5 +1961,5 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
           <div className="flex space-x-3">
             <button
               onClick={() => setShowScheduler(true)}
-              disabled={actionLoading === 'create'}
+              disabled={actionLoading == 'create'}
               className="flex items-center justify-center space-x-2 px-8 py-3 bg-blue-600 text-white text-base font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-200 min-w-[200
