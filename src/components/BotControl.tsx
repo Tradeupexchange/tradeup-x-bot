@@ -54,6 +54,7 @@ interface JobSettings {
   topics?: string[];
   postingTimeStart?: string;
   postingTimeEnd?: string;
+  postingDate?: string; // New field for date selection
   contentTypes?: {
     cardPulls: boolean;
     deckBuilding: boolean;
@@ -240,9 +241,14 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
           jobSettings.postingTimeEnd || '17:00'
         );
 
-        // Assign scheduled times to posts
+        // Assign scheduled times to posts (with date if provided)
         content.forEach((item, index) => {
-          item.scheduledTime = scheduledTimes[index];
+          const timeSlot = scheduledTimes[index];
+          if (jobSettings.postingDate) {
+            item.scheduledTime = `${jobSettings.postingDate} ${timeSlot}`;
+          } else {
+            item.scheduledTime = timeSlot;
+          }
         });
 
       } else if (jobType === 'replying') {
@@ -671,6 +677,41 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
     }
   };
 
+  // Format date and time for display
+  const formatDateTime = (dateTimeString: string | undefined): string => {
+    if (!dateTimeString) return 'Not scheduled';
+    
+    try {
+      const date = new Date(dateTimeString);
+      return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (error) {
+      return 'Invalid date';
+    }
+  };
+
+  // Format time without seconds
+  const formatTime = (timeString: string | undefined): string => {
+    if (!timeString) return 'Never';
+    
+    try {
+      const date = new Date(timeString);
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (error) {
+      return 'Invalid time';
+    }
+  };
+
   // Posted Replies Modal Component
   const PostedRepliesModal: React.FC<{
     replies: PostedReply[];
@@ -865,14 +906,14 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
         )}
       </div>
 
-      {/* Active Jobs */}
+      {/* Scheduled Posting Jobs */}
       <div className="bg-white rounded-xl p-6 shadow-sm">
-        <h4 className="text-lg font-semibold text-gray-900 mb-4">Active Jobs</h4>
+        <h4 className="text-lg font-semibold text-gray-900 mb-4">Scheduled Posting Jobs</h4>
         
         {jobs.length === 0 ? (
           <div className="text-center py-8">
             <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 mb-4">No active jobs running</p>
+            <p className="text-gray-500 mb-4">No scheduled jobs running</p>
             <p className="text-sm text-gray-400">Create a new job to get started with automated posting or replying</p>
           </div>
         ) : (
@@ -888,6 +929,8 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
                 editingJobName={editingJobName}
                 setEditingJobId={setEditingJobId}
                 setEditingJobName={setEditingJobName}
+                formatDateTime={formatDateTime}
+                formatTime={formatTime}
               />
             ))}
           </div>
@@ -955,12 +998,18 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
   const [newTopic, setNewTopic] = useState('');
   const [jobName, setJobName] = useState('');
   
+  // Get tomorrow's date as default
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const defaultDate = tomorrow.toISOString().split('T')[0];
+  
   const [settings, setSettings] = useState({
     // Posting settings
     postsPerDay: 5,
     topics: ['Pokemon TCG'],
     postingTimeStart: '09:00',
     postingTimeEnd: '17:00',
+    postingDate: defaultDate, // Default to tomorrow
     contentTypes: {
       cardPulls: true,
       deckBuilding: true,
@@ -1000,6 +1049,7 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
           topics: settings.topics,
           postingTimeStart: settings.postingTimeStart,
           postingTimeEnd: settings.postingTimeEnd,
+          postingDate: settings.postingDate,
           contentTypes: settings.contentTypes
         } : {
           maxRepliesPerHour: settings.maxRepliesPerHour
@@ -1147,7 +1197,7 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
   );
 };
 
-// Enhanced Posting Settings with topics management
+// Enhanced Posting Settings with topics management and date selection
 const EnhancedPostingSettings: React.FC<{
   settings: any;
   onChange: (settings: any) => void;
@@ -1181,12 +1231,24 @@ const EnhancedPostingSettings: React.FC<{
         </div>
       </div>
 
-      {/* Posting time range */}
+      {/* Posting date and time range */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Posting Hours
+          Posting Schedule
         </label>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="text-xs text-gray-500">Date</label>
+            <input
+              type="date"
+              value={settings.postingDate}
+              onChange={(e) => onChange({
+                ...settings,
+                postingDate: e.target.value
+              })}
+              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
           <div>
             <label className="text-xs text-gray-500">Start Time</label>
             <input
@@ -1212,6 +1274,9 @@ const EnhancedPostingSettings: React.FC<{
             />
           </div>
         </div>
+        <p className="text-xs text-gray-600 mt-2">
+          Posts will be scheduled evenly between the start and end times on the selected date.
+        </p>
       </div>
 
       {/* Topics */}
@@ -1611,6 +1676,8 @@ interface JobCardProps {
   editingJobName: string;
   setEditingJobId: (id: string | null) => void;
   setEditingJobName: (name: string) => void;
+  formatDateTime: (dateTime: string | undefined) => string;
+  formatTime: (time: string | undefined) => string;
 }
 
 const JobCard: React.FC<JobCardProps> = ({ 
@@ -1621,7 +1688,9 @@ const JobCard: React.FC<JobCardProps> = ({
   editingJobId,
   editingJobName,
   setEditingJobId,
-  setEditingJobName
+  setEditingJobName,
+  formatDateTime,
+  formatTime
 }) => {
   const isRunning = job.status === 'running';
   const isLoading = actionLoading?.startsWith(job.id);
@@ -1747,30 +1816,20 @@ const JobCard: React.FC<JobCardProps> = ({
         </div>
       </div>
 
-      {/* Job Details */}
+      {/* Job Details - Updated to remove Today's Count and Success Rate */}
       <div className="mt-4 pt-4 border-t border-gray-100">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        <div className="grid grid-cols-2 gap-6 text-sm">
           <div>
             <span className="text-gray-500">Last Run:</span>
             <p className="font-medium">
-              {job.lastRun ? new Date(job.lastRun).toLocaleTimeString() : 'Never'}
+              {formatTime(job.lastRun)}
             </p>
           </div>
           <div>
-            <span className="text-gray-500">Next Run:</span>
+            <span className="text-gray-500">Next Scheduled Run:</span>
             <p className="font-medium">
-              {job.nextRun ? new Date(job.nextRun).toLocaleTimeString() : 'Not scheduled'}
+              {formatDateTime(job.nextRun)}
             </p>
-          </div>
-          <div>
-            <span className="text-gray-500">Today's Count:</span>
-            <p className="font-medium">
-              {job.type === 'posting' ? job.stats.postsToday : job.stats.repliesToday}
-            </p>
-          </div>
-          <div>
-            <span className="text-gray-500">Success Rate:</span>
-            <p className="font-medium">{job.stats.successRate}%</p>
           </div>
         </div>
       </div>
