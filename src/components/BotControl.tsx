@@ -45,7 +45,7 @@
                   </span>
                 </div>
               </div>
-            ))}
+            ))
           </div>
 
           <div className="p-6 border-t border-gray-200 bg-gray-50">
