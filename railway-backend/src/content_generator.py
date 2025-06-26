@@ -288,7 +288,7 @@ def parse_llm_response(response_content):
 
     # If all else fails, try to split by common separators and create a single post
     # This is a last resort to ensure at least one post is returned
-    lines = [line.strip() for line in response_content.split('\n') if line.strip()]
+    lines = [line.strip().strip('"').strip("'") for line in response_content.split('\n') if line.strip().strip('"').strip("'")]
     if lines:
         content = " ".join(lines)
         tradeup_mentioned = "tradeup" in content.lower()

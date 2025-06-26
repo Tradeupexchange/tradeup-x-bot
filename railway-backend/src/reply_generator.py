@@ -113,12 +113,12 @@ def generate_reply_content(tweet_content, username=None):
         if "REPLY:" in response:
             reply_match = re.search(r'REPLY:\s*(.*?)$', response, re.DOTALL)
             if reply_match:
-                reply_content = reply_match.group(1).strip()
+                reply_content = reply_match.group(1).strip().strip('"').strip("'")
                 # Clean up any extra formatting
-                reply_content = reply_content.replace('\n', ' ').strip()
+                reply_content = reply_content.replace('\n', ' ').strip().strip('"').strip("'")
                 
                 # Remove any trailing text that might be cut off
-                reply_content = reply_content.split('\n')[0].strip()
+                reply_content = reply_content.split('\n')[0].strip().strip('"').strip("'")
                 
                 logging.info(f"✅ Generated reply: {reply_content}")
                 return reply_content
