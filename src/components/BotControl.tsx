@@ -113,6 +113,17 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
       console.log('Updated jobs from API:', realJobs);
     }
   }, [status]);
+  useEffect(() => {
+    if (showScheduler || showContentApproval || showPostedReplies) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showScheduler, showContentApproval, showPostedReplies]);
 
   const handleJobAction = async (jobId: string, action: 'start' | 'stop' | 'pause') => {
     try {
