@@ -11,22 +11,12 @@ interface BotJob {
   createdAt?: string;
   lastRun?: string;
   nextRun?: string;
-  stats: {
-    postsToday: number;
-    repliesToday: number;
-    successRate: number;
-  };
 }
 
 interface BotStatus {
   running: boolean;
   uptime: string | null;
   lastRun: string | null;
-  stats: {
-    postsToday: number;
-    repliesToday: number;
-    successRate: number;
-  };
   jobs: BotJob[];
   timestamp: string;
 }
@@ -54,6 +44,7 @@ interface JobSettings {
   topics?: string[];
   postingTimeStart?: string;
   postingTimeEnd?: string;
+  postingDate?: string;
   contentTypes?: {
     cardPulls: boolean;
     deckBuilding: boolean;
@@ -867,7 +858,7 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
 
       {/* Active Jobs */}
       <div className="bg-white rounded-xl p-6 shadow-sm">
-        <h4 className="text-lg font-semibold text-gray-900 mb-4">Active Jobs</h4>
+        <h4 className="text-lg font-semibold text-gray-900 mb-4">Scheduled Posting Jobs</h4>
         
         {jobs.length === 0 ? (
           <div className="text-center py-8">
@@ -961,6 +952,7 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
     topics: ['Pokemon TCG'],
     postingTimeStart: '09:00',
     postingTimeEnd: '17:00',
+    postingDate: new Date().toISOString().split('T')[0],
     contentTypes: {
       cardPulls: true,
       deckBuilding: true,
@@ -1000,6 +992,7 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
           topics: settings.topics,
           postingTimeStart: settings.postingTimeStart,
           postingTimeEnd: settings.postingTimeEnd,
+          postingDate: settings.postingDate,
           contentTypes: settings.contentTypes
         } : {
           maxRepliesPerHour: settings.maxRepliesPerHour
@@ -1181,12 +1174,25 @@ const EnhancedPostingSettings: React.FC<{
         </div>
       </div>
 
-      {/* Posting time range */}
+      {/* Posting date and time range */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Posting Hours
+          Posting Schedule
         </label>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="text-xs text-gray-500">Date</label>
+            <input
+              type="date"
+              value={settings.postingDate}
+              min={new Date().toISOString().split('T')[0]}
+              onChange={(e) => onChange({
+                ...settings,
+                postingDate: e.target.value
+              })}
+              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
           <div>
             <label className="text-xs text-gray-500">Start Time</label>
             <input
@@ -1749,32 +1755,21 @@ const JobCard: React.FC<JobCardProps> = ({
 
       {/* Job Details */}
       <div className="mt-4 pt-4 border-t border-gray-100">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-gray-500">Last Run:</span>
             <p className="font-medium">
-              {job.lastRun ? new Date(job.lastRun).toLocaleTimeString() : 'Never'}
+              {job.lastRun ? new Date(job.lastRun).toLocaleString() : 'Never'}
             </p>
           </div>
           <div>
-            <span className="text-gray-500">Next Run:</span>
+            <span className="text-gray-500">Next Scheduled Run:</span>
             <p className="font-medium">
-              {job.nextRun ? new Date(job.nextRun).toLocaleTimeString() : 'Not scheduled'}
+              {job.nextRun ? new Date(job.nextRun).toLocaleString() : 'Not scheduled'}
             </p>
-          </div>
-          <div>
-            <span className="text-gray-500">Today's Count:</span>
-            <p className="font-medium">
-              {job.type === 'posting' ? job.stats.postsToday : job.stats.repliesToday}
-            </p>
-          </div>
-          <div>
-            <span className="text-gray-500">Success Rate:</span>
-            <p className="font-medium">{job.stats.successRate}%</p>
           </div>
         </div>
       </div>
-    </div>
   );
 };
 
