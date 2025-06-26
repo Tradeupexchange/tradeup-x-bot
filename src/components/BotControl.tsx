@@ -87,6 +87,11 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
   const [currentJobType, setCurrentJobType] = useState<'posting' | 'replying'>('posting');
   const [postedReplies, setPostedReplies] = useState<PostedReply[]>([]);
   const [showPostedReplies, setShowPostedReplies] = useState(false);
+  const handleCloseContentApproval = () => {
+  setShowContentApproval(false);
+  setGeneratedContent([]);
+  setCurrentJobSettings(null);
+};
 
   // Update jobs when status changes (filter out demo jobs)
   useEffect(() => {
@@ -309,10 +314,7 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
     } finally {
       setActionLoading(null);
     }
-    const handleCloseContentApproval = () => {
-      setShowContentApproval(false);
-      setGeneratedContent([]);
-      setCurrentJobSettings(null);
+    
   };
 
   const approveContent = (contentId: string) => {
