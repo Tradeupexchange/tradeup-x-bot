@@ -210,7 +210,7 @@ class LLMManager:
                     
                     if is_pokemon:
                         reply_match = re.search(r'REPLY: (.*?)($|POKEMON_RELATED:)', response, re.DOTALL)
-                        reply = reply_match.group(1).strip() if reply_match else "Interesting Pokémon card post! Trade safely on TradeUp!"
+                        reply = reply_match.group(1).strip().strip('"').strip("'") if reply_match else "Interesting Pokémon card post! Trade safely on TradeUp!"
                         
                     results.append((tweet, is_pokemon, reply))
                     
@@ -317,7 +317,7 @@ REPLY: [Your reply text here]
         for match in matches:
             tweet_num = int(match.group(1))
             is_pokemon = match.group(2) == 'YES'
-            reply = match.group(3).strip() if match.group(3) else ""
+            reply = match.group(3).strip().strip('"').strip("'") if match.group(3) else ""
             
             parsed_results[tweet_num] = (is_pokemon, reply)
             

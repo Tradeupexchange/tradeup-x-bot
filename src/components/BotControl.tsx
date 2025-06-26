@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Square, RefreshCw, AlertCircle, CheckCircle, MessageSquare, Reply, Settings, Clock, Target, Eye, Check, X, Calendar, Plus, Trash2, Edit2, RotateCcw, ExternalLink } from 'lucide-react';
 import { useApi, useNextRefreshTime, apiCall } from '../hooks/useApi';
-import { createPortal } from 'react-dom';
 
 interface BotJob {
   id: string;
@@ -890,47 +889,59 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
         )}
       </div>
 
-  {/* Enhanced Job Scheduler Modal */}
-  {showScheduler && createPortal(
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999]">
-      <EnhancedJobScheduler
-        onClose={() => setShowScheduler(false)}
-        onCreateJob={createNewJob}
-        onCreateJobWithApproval={createJobWithApproval}
-        loading={actionLoading === 'create' || actionLoading === 'generate-content'}
-      />
-    </div>,
-    document.body
-  )}
+      {/* Enhanced Job Scheduler Modal */}
+      {showScheduler && (
+        <div className="fixed bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999]" 
+          style={{
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh'
+          }}>
+          <EnhancedJobScheduler
+            onClose={() => setShowScheduler(false)}
+            onCreateJob={createNewJob}
+            onCreateJobWithApproval={createJobWithApproval}
+            loading={actionLoading === 'create' || actionLoading === 'generate-content'}
+          />
+        </div>
+      )}
 
-  {/* Content Approval Modal */}
-  {showContentApproval && createPortal(
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999]">
-      <ContentApprovalModal
-        content={generatedContent}
-        contentType={currentJobType}
-        onApprove={approveContent}
-        onRegenerate={regenerateContent}
-        onRegenerateForDifferent={regenerateForDifferentTweet}
-        onSchedule={scheduleApprovedContent}
-        onClose={handleCloseContentApproval}
-        loading={actionLoading}
-      />
-    </div>,
-    document.body
-  )}
+      {/* Content Approval Modal */}
+      {showContentApproval && (
+        <div className="fixed bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999]" 
+          style={{
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh'
+          }}>
+          <ContentApprovalModal
+            content={generatedContent}
+            contentType={currentJobType}
+            onApprove={approveContent}
+            onRegenerate={regenerateContent}
+            onRegenerateForDifferent={regenerateForDifferentTweet}
+            onSchedule={scheduleApprovedContent}
+            onClose={handleCloseContentApproval}
+            loading={actionLoading}
+          />
+        </div>
+      )}
 
-  {/* Posted Replies Display Modal */}
-  {showPostedReplies && createPortal(
-    <PostedRepliesModal
-      replies={postedReplies}
-      onClose={() => {
-        setShowPostedReplies(false);
-        setPostedReplies([]);
-      }}
-    />,
-    document.body
-  )}
+      {/* Posted Replies Display Modal */}
+      {showPostedReplies && (
+        <PostedRepliesModal
+          replies={postedReplies}
+          onClose={() => {
+            setShowPostedReplies(false);
+            setPostedReplies([]);
+          }}
+        />
+      )}
+    </div>
+  );
+};
 
 // Enhanced Job Scheduler with unified workflow
 interface EnhancedJobSchedulerProps {
