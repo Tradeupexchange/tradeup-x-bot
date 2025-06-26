@@ -252,6 +252,7 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
           setActionLoading(null);
           return;
         }
+      
 
         // Generate replies for the requested number of tweets
         const tweetsToProcess = tweetsResult.tweets.slice(0, numReplies);
@@ -308,6 +309,10 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
     } finally {
       setActionLoading(null);
     }
+    const handleCloseContentApproval = () => {
+      setShowContentApproval(false);
+      setGeneratedContent([]);
+      setCurrentJobSettings(null);
   };
 
   const approveContent = (contentId: string) => {
@@ -668,7 +673,7 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
     onClose: () => void;
   }> = ({ replies, onClose }) => {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[70]">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div className="bg-white rounded-xl max-w-4xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
@@ -823,16 +828,6 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
               <span>{actionLoading === 'create' ? 'Creating...' : 'New Job'}</span>
             </button>
 
-            {generatedContent.length > 0 && (
-              <button
-                onClick={() => setShowContentApproval(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-200"
-              >
-                <Eye className="h-4 w-4" />
-                <span>Review Content ({generatedContent.filter(c => c.approved === null).length})</span>
-              </button>
-            )}
-
             {loading && (
               <div className="flex items-center space-x-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg">
                 <RefreshCw className="h-4 w-4 animate-spin" />
@@ -887,7 +882,7 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
 
       {/* Enhanced Job Scheduler Modal */}
       {showScheduler && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <EnhancedJobScheduler
             onClose={() => setShowScheduler(false)}
             onCreateJob={createNewJob}
@@ -899,7 +894,7 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
 
       {/* Content Approval Modal */}
       {showContentApproval && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <ContentApprovalModal
             content={generatedContent}
             contentType={currentJobType}
@@ -907,7 +902,7 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
             onRegenerate={regenerateContent}
             onRegenerateForDifferent={regenerateForDifferentTweet}
             onSchedule={scheduleApprovedContent}
-            onClose={() => setShowContentApproval(false)}
+            onClose={handleCloseContentApproval}
             loading={actionLoading}
           />
         </div>
@@ -1020,18 +1015,20 @@ const EnhancedJobScheduler: React.FC<EnhancedJobSchedulerProps> = ({
 
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         {/* Job Name */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Job Name (optional)
-          </label>
-          <input
-            type="text"
-            value={jobName}
-            onChange={(e) => setJobName(e.target.value)}
-            placeholder="Enter a name for this job or leave empty for auto-generation"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
+        {jobType === 'posting' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Job Name (optional)
+            </label>
+            <input
+              type="text"
+              value={jobName}
+              onChange={(e) => setJobName(e.target.value)}
+              placeholder="Enter a name for this job or leave empty for auto-generation"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        )}
 
         {/* Job Type Selection */}
         <div>
@@ -1318,9 +1315,6 @@ const ReplyingSettings: React.FC<{ settings: any; onChange: (settings: any) => v
           <span>10</span>
           <span>20</span>
         </div>
-        <p className="text-xs text-gray-600 mt-2">
-          Replies will be generated from tweets in your Google Sheet, approved by you, then automatically posted.
-        </p>
       </div>
 
       {/* Auto-posting notice */}
