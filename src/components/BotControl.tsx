@@ -675,7 +675,7 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
     onClose: () => void;
   }> = ({ replies, onClose }) => {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[50]">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999] min-h-screen w-full">
         <div className="bg-white rounded-xl max-w-4xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
@@ -884,7 +884,7 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
 
       {/* Enhanced Job Scheduler Modal */}
       {showScheduler && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[50]">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999] min-h-screen w-full">
           <EnhancedJobScheduler
             onClose={() => setShowScheduler(false)}
             onCreateJob={createNewJob}
@@ -896,7 +896,7 @@ const BotControl: React.FC<BotControlProps> = ({ onPostSuccess, onJobCreated }) 
 
       {/* Content Approval Modal */}
       {showContentApproval && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[50]">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999] min-h-screen w-full">
           <ContentApprovalModal
             content={generatedContent}
             contentType={currentJobType}
