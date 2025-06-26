@@ -271,6 +271,10 @@ def parse_llm_response(response_content):
         # Attempt to parse as direct JSON
         posts = json.loads(response_content)
         if isinstance(posts, list):
+            # Strip quotes from post content
+            for post in posts:
+                if isinstance(post, dict) and 'post_content' in post:
+                    post['post_content'] = post['post_content'].strip().strip('"').strip("'").strip()
             return posts
     except json.JSONDecodeError:
         pass
@@ -290,7 +294,7 @@ def parse_llm_response(response_content):
     # This is a last resort to ensure at least one post is returned
     lines = [line.strip().strip('"').strip("'") for line in response_content.split('\n') if line.strip().strip('"').strip("'")]
     if lines:
-        content = " ".join(lines)
+        content = " ".join(lines).strip().strip('"').strip("'").strip()
         tradeup_mentioned = "tradeup" in content.lower()
         return [{
             "post_content": content,
