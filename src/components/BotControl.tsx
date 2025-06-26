@@ -1770,8 +1770,8 @@ const JobCard: React.FC<JobCardProps> = ({
           </div>
         </div>
       </div>
-    </div>  {/* ADD THIS CLOSING DIV TAG */}
+    </div> 
   );
-}; {/* ADD THIS CLOSING BRACE */}
+};
 
 export default BotControl;
