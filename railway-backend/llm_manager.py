@@ -11,8 +11,22 @@ import json
 import re
 from typing import Dict, Any, Optional, List, Tuple
 from openai import OpenAI
+import logging
+
 
 from src.config import OPENAI_API_KEY
+logging.info(f"🔑 LLM Manager - OPENAI_API_KEY loaded: {'✅ Yes' if OPENAI_API_KEY else '❌ No'}")
+if OPENAI_API_KEY:
+    logging.info(f"🔑 LLM Manager - Key length: {len(OPENAI_API_KEY)}")
+    logging.info(f"🔑 LLM Manager - Key starts with: {OPENAI_API_KEY[:15]}...")
+else:
+    logging.error("❌ LLM Manager - No OPENAI_API_KEY found in config")
+    # Try direct environment access as fallback
+    direct_key = os.getenv('OPENAI_API_KEY')
+    logging.info(f"🔑 LLM Manager - Direct env check: {'✅ Yes' if direct_key else '❌ No'}")
+    if direct_key:
+        logging.info(f"🔑 LLM Manager - Direct key length: {len(direct_key)}")
+        OPENAI_API_KEY = direct_key
 
 # Constants for rate limiting
 MIN_DELAY = 0.5  # Minimum delay between API calls in seconds
@@ -32,11 +46,18 @@ class LLMManager:
     
     def __init__(self):
         """Initialize the LLM Manager."""
+        logging.info(f"🚀 Initializing OpenAI client with key: {'✅ Available' if OPENAI_API_KEY else '❌ Missing'}")
+    
+        if not OPENAI_API_KEY:
+            logging.error("❌ Cannot initialize OpenAI client - no API key")
+            raise ValueError("OPENAI_API_KEY is required but not found")
+        
         self.client = OpenAI(api_key=OPENAI_API_KEY)
         self.call_count = 0
         self.last_call_time = 0
         self.consecutive_errors = 0
         
+        logging.info("✅ LLM Manager initialized with OpenAI successfully")
         print("LLM Manager initialized with OpenAI")
         
     def _apply_rate_limiting(self):
