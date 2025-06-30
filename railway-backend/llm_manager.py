@@ -355,4 +355,13 @@ REPLY: [Your reply text here]
         return results
 
 # Create a singleton instance
-llm_manager = LLMManager()
+try:
+    if OPENAI_API_KEY:
+        llm_manager = LLMManager()
+        print("✅ LLM Manager singleton created successfully")
+    else:
+        print("❌ Cannot create LLM Manager - no API key")
+        llm_manager = None
+except Exception as e:
+    print(f"❌ Failed to create LLM Manager: {e}")
+    llm_manager = None
