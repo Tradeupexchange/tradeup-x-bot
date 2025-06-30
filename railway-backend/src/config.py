@@ -25,6 +25,15 @@ LLM_API_KEY = os.getenv('OPENAI_API_KEY', '')  # Default to OpenAI API key
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 
+print(f"🔑 OPENAI_API_KEY loaded: {'✅ Yes' if OPENAI_API_KEY else '❌ No'}")
+if OPENAI_API_KEY:
+    print(f"🔑 Key length: {len(OPENAI_API_KEY)}")
+    print(f"🔑 Key starts with: {OPENAI_API_KEY[:15]}...")
+    print(f"🔑 Key ends with: ...{OPENAI_API_KEY[-10:]}")
+else:
+    print("❌ No OPENAI_API_KEY found in environment")
+    print("🔍 Available env vars with 'API':", [k for k in os.environ.keys() if 'API' in k])
+
 LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'openai')  # Default to OpenAI
 
 # Directory paths
