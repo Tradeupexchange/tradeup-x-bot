@@ -2,6 +2,7 @@
 Google Sheets reader for TradeUp X Engager.
 Reads tweet data from public Google Sheets for reply generation.
 Modified to read from LAST entries first (most recent tweets).
+Enhanced with Google Drive API to automatically find the most recent sheet.
 """
 
 import requests
@@ -9,12 +10,166 @@ import logging
 import re
 import csv
 import random
+import os
 from io import StringIO
 from typing import List, Dict, Optional
 from datetime import datetime
 
+# Google API imports
+try:
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+    GOOGLE_API_AVAILABLE = True
+except ImportError:
+    GOOGLE_API_AVAILABLE = False
+    logging.warning("Google API libraries not installed. Install with: pip install google-api-python-client google-auth")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# Configuration
+SERVICE_ACCOUNT_FILE = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE', 'service-account-key.json')
+DRIVE_FOLDER_ID = os.getenv('GOOGLE_DRIVE_FOLDER_ID', '')  # Set this to your folder ID
+SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+
+def get_drive_service():
+    """
+    Create and return a Google Drive service object.
+    
+    Returns:
+        Google Drive service object or None if setup fails
+    """
+    if not GOOGLE_API_AVAILABLE:
+        logging.error("Google API libraries not available. Install with: pip install google-api-python-client google-auth")
+        return None
+    
+    if not os.path.exists(SERVICE_ACCOUNT_FILE):
+        logging.error(f"Service account file not found: {SERVICE_ACCOUNT_FILE}")
+        logging.info("Please download your service account JSON file and update the SERVICE_ACCOUNT_FILE path")
+        return None
+    
+    try:
+        credentials = service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+        
+        drive_service = build('drive', 'v3', credentials=credentials)
+        return drive_service
+    
+    except Exception as e:
+        logging.error(f"Failed to create Google Drive service: {e}")
+        return None
+
+def get_most_recent_sheet_url(folder_id: str = None) -> Optional[str]:
+    """
+    Get the URL of the most recently modified Google Sheet in a folder.
+    
+    Args:
+        folder_id: Google Drive folder ID. If None, uses DRIVE_FOLDER_ID
+        
+    Returns:
+        URL of the most recent sheet or None if not found
+    """
+    if not folder_id:
+        folder_id = DRIVE_FOLDER_ID
+    
+    if not folder_id:
+        logging.error("No folder ID provided. Set DRIVE_FOLDER_ID environment variable or pass folder_id parameter")
+        return None
+    
+    drive_service = get_drive_service()
+    if not drive_service:
+        return None
+    
+    try:
+        # Query for Google Sheets in the specific folder, ordered by modification time
+        query = f"'{folder_id}' in parents and mimeType='application/vnd.google-apps.spreadsheet'"
+        
+        logging.info(f"🔍 Searching for sheets in folder: {folder_id}")
+        
+        results = drive_service.files().list(
+            q=query,
+            orderBy='modifiedTime desc',  # Most recently modified first
+            fields='files(id, name, modifiedTime, webViewLink)',
+            pageSize=1  # Only get the most recent
+        ).execute()
+        
+        files = results.get('files', [])
+        
+        if files:
+            most_recent = files[0]
+            sheet_url = f"https://docs.google.com/spreadsheets/d/{most_recent['id']}/edit"
+            
+            logging.info(f"✅ Found most recent sheet: {most_recent['name']}")
+            logging.info(f"📅 Last modified: {most_recent['modifiedTime']}")
+            logging.info(f"🔗 Sheet URL: {sheet_url}")
+            
+            return sheet_url
+        else:
+            logging.warning(f"❌ No Google Sheets found in folder {folder_id}")
+            logging.info("Make sure:")
+            logging.info("1. The folder ID is correct")
+            logging.info("2. The service account has access to the folder")
+            logging.info("3. There are Google Sheets in the folder")
+            return None
+            
+    except Exception as e:
+        logging.error(f"❌ Error accessing Google Drive: {e}")
+        logging.info("Check that:")
+        logging.info("1. Service account file is valid")
+        logging.info("2. Service account has access to the folder")
+        logging.info("3. Google Drive API is enabled in your project")
+        return None
+
+def get_all_sheets_in_folder(folder_id: str = None, max_sheets: int = 10) -> List[Dict]:
+    """
+    Get information about all Google Sheets in a folder.
+    
+    Args:
+        folder_id: Google Drive folder ID. If None, uses DRIVE_FOLDER_ID
+        max_sheets: Maximum number of sheets to return
+        
+    Returns:
+        List of sheet information dictionaries
+    """
+    if not folder_id:
+        folder_id = DRIVE_FOLDER_ID
+    
+    if not folder_id:
+        logging.error("No folder ID provided")
+        return []
+    
+    drive_service = get_drive_service()
+    if not drive_service:
+        return []
+    
+    try:
+        query = f"'{folder_id}' in parents and mimeType='application/vnd.google-apps.spreadsheet'"
+        
+        results = drive_service.files().list(
+            q=query,
+            orderBy='modifiedTime desc',
+            fields='files(id, name, modifiedTime, webViewLink)',
+            pageSize=max_sheets
+        ).execute()
+        
+        files = results.get('files', [])
+        
+        sheets_info = []
+        for file in files:
+            sheet_info = {
+                'id': file['id'],
+                'name': file['name'],
+                'modified_time': file['modifiedTime'],
+                'url': f"https://docs.google.com/spreadsheets/d/{file['id']}/edit"
+            }
+            sheets_info.append(sheet_info)
+        
+        logging.info(f"📊 Found {len(sheets_info)} sheets in folder")
+        return sheets_info
+        
+    except Exception as e:
+        logging.error(f"❌ Error getting sheets from folder: {e}")
+        return []
 
 def extract_sheet_id(sheet_url: str) -> Optional[str]:
     """
@@ -218,18 +373,49 @@ def get_tweets_from_sheet(sheet_url: str, max_tweets: int = 50, reverse_order: b
     
     return tweets
 
-def get_tweets_for_reply(sheet_url: str, num_tweets: int = 5, reverse_order: bool = True) -> List[Dict]:
+def get_tweets_from_most_recent_sheet(folder_id: str = None, max_tweets: int = 50, reverse_order: bool = True) -> List[Dict]:
     """
-    Get a selection of tweets from the Google Sheet that are suitable for replying to.
+    Get tweets from the most recently modified sheet in a Google Drive folder.
     
     Args:
-        sheet_url: URL of the Google Sheet
+        folder_id: Google Drive folder ID. If None, uses DRIVE_FOLDER_ID
+        max_tweets: Maximum number of tweets to read
+        reverse_order: If True, reads from last entries first (most recent)
+        
+    Returns:
+        List of tweet data dictionaries
+    """
+    # Get the most recent sheet URL
+    sheet_url = get_most_recent_sheet_url(folder_id)
+    
+    if not sheet_url:
+        logging.error("❌ Could not find most recent sheet")
+        return []
+    
+    # Use existing function to read tweets from the sheet
+    return get_tweets_from_sheet(sheet_url, max_tweets, reverse_order)
+
+def get_tweets_for_reply(sheet_url: str = None, folder_id: str = None, num_tweets: int = 5, reverse_order: bool = True) -> List[Dict]:
+    """
+    Get a selection of tweets suitable for replying to.
+    Can use either a specific sheet URL or automatically find the most recent sheet in a folder.
+    
+    Args:
+        sheet_url: URL of a specific Google Sheet (takes priority over folder_id)
+        folder_id: Google Drive folder ID to find most recent sheet
         num_tweets: Number of tweets to select for reply
         reverse_order: If True, prioritizes most recent tweets
         
     Returns:
         List of tweet data dictionaries with URLs in FastAPI format
     """
+    # If no sheet_url provided, try to get the most recent sheet from folder
+    if not sheet_url:
+        sheet_url = get_most_recent_sheet_url(folder_id)
+        if not sheet_url:
+            logging.error("❌ No sheet URL provided and could not find most recent sheet")
+            return []
+    
     # Get all tweets from the sheet (with reverse order)
     all_tweets = get_tweets_from_sheet(sheet_url, max_tweets=100, reverse_order=reverse_order)
     
@@ -337,38 +523,100 @@ def test_sheet_connection(sheet_url: str) -> Dict:
             "message": f"Failed to connect to Google Sheet: {str(e)}"
         }
 
+def test_drive_connection(folder_id: str = None) -> Dict:
+    """
+    Test the connection to Google Drive and return status info.
+    
+    Args:
+        folder_id: Google Drive folder ID. If None, uses DRIVE_FOLDER_ID
+        
+    Returns:
+        Dictionary with connection test results
+    """
+    try:
+        if not folder_id:
+            folder_id = DRIVE_FOLDER_ID
+        
+        if not folder_id:
+            return {
+                "success": False,
+                "message": "No folder ID provided. Set DRIVE_FOLDER_ID environment variable."
+            }
+        
+        # Test getting all sheets in folder
+        sheets = get_all_sheets_in_folder(folder_id, max_sheets=5)
+        
+        if sheets:
+            most_recent_url = get_most_recent_sheet_url(folder_id)
+            result = {
+                "success": True,
+                "sheets_found": len(sheets),
+                "most_recent_sheet": sheets[0]['name'] if sheets else None,
+                "most_recent_url": most_recent_url,
+                "message": f"Successfully connected to Google Drive. Found {len(sheets)} sheets in folder."
+            }
+        else:
+            result = {
+                "success": False,
+                "sheets_found": 0,
+                "message": "Connected to Google Drive but no sheets found in folder. Check folder ID and permissions."
+            }
+        
+        return result
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "sheets_found": 0,
+            "message": f"Failed to connect to Google Drive: {str(e)}"
+        }
+
 if __name__ == "__main__":
     # Example usage and testing
-    sheet_url = "https://docs.google.com/spreadsheets/d/1U50KjbsYUswh0IGWTPgeP97Y2kXRcYM_H1VoeyAQhpw/edit?gid=0#gid=0"
     
-    print("🧪 Testing Google Sheets connection...")
-    test_result = test_sheet_connection(sheet_url)
-    print(f"Test result: {test_result}")
+    print("🧪 Testing Google Drive API connection...")
     
-    if test_result["success"]:
-        print(f"\n📊 Retrieved {test_result['tweets_found']} tweets from Google Sheet (most recent first)")
-        for i, tweet in enumerate(test_result["sample_tweets"]):
-            print(f"Tweet {i+1}: {tweet.get('text', 'No content')[:100]}...")
-            if tweet.get('url'):
-                print(f"  URL: {tweet['url']}")
-            if tweet.get('author'):
-                print(f"  Author: @{tweet['author']}")
+    # Test 1: Drive connection
+    drive_test = test_drive_connection()
+    print(f"Drive test result: {drive_test}")
+    
+    if drive_test["success"]:
+        print(f"\n📊 Found {drive_test['sheets_found']} sheets in folder")
+        print(f"🏆 Most recent sheet: {drive_test['most_recent_sheet']}")
         
-        # Test getting tweets for reply (most recent first)
-        print(f"\n🎯 Testing reply tweet selection (most recent first)...")
-        reply_tweets = get_tweets_for_reply(sheet_url, 3, reverse_order=True)
-        print(f"Selected {len(reply_tweets)} most recent tweets for reply:")
+        # Test 2: Read from most recent sheet automatically
+        print(f"\n🎯 Testing automatic most recent sheet reading...")
+        recent_tweets = get_tweets_from_most_recent_sheet(max_tweets=5)
+        
+        if recent_tweets:
+            print(f"✅ Successfully read {len(recent_tweets)} tweets from most recent sheet:")
+            for i, tweet in enumerate(recent_tweets):
+                print(f"Tweet {i+1}: {tweet.get('text', 'No content')[:100]}...")
+                if tweet.get('url'):
+                    print(f"  URL: {tweet['url']}")
+                if tweet.get('author'):
+                    print(f"  Author: @{tweet['author']}")
+        
+        # Test 3: Get tweets for reply from most recent sheet
+        print(f"\n🎲 Testing reply tweet selection from most recent sheet...")
+        reply_tweets = get_tweets_for_reply(num_tweets=3, reverse_order=True)
+        print(f"Selected {len(reply_tweets)} tweets for reply:")
         for i, tweet in enumerate(reply_tweets):
             print(f"Reply Tweet {i+1}: {tweet.get('text', 'No content')[:80]}...")
             print(f"  URL: {tweet.get('url', 'No URL')}")
             print(f"  ID: {tweet.get('id', 'No ID')}")
             print(f"  Author: @{tweet.get('author', 'unknown')}")
-            
-        # Test chronological order as well
-        print(f"\n📈 Testing chronological order (oldest first)...")
-        chrono_tweets = get_tweets_from_sheet_chronological(sheet_url, 3)
-        print(f"Selected {len(chrono_tweets)} tweets in chronological order:")
-        for i, tweet in enumerate(chrono_tweets):
-            print(f"Chrono Tweet {i+1}: {tweet.get('text', 'No content')[:80]}...")
+    
     else:
-        print(f"❌ Connection test failed: {test_result['message']}")
+        print(f"❌ Drive connection failed: {drive_test['message']}")
+        print("\n📋 Setup checklist:")
+        print("1. Install Google API libraries: pip install google-api-python-client google-auth")
+        print("2. Set SERVICE_ACCOUNT_FILE environment variable or place 'service-account-key.json' in current directory")
+        print("3. Set DRIVE_FOLDER_ID environment variable to your Google Drive folder ID")
+        print("4. Share the folder with your service account email")
+        
+        # Fallback: Test with manual sheet URL if provided
+        fallback_url = "https://docs.google.com/spreadsheets/d/1U50KjbsYUswh0IGWTPgeP97Y2kXRcYM_H1VoeyAQhpw/edit?gid=0#gid=0"
+        print(f"\n🔄 Falling back to manual sheet URL test...")
+        manual_test = test_sheet_connection(fallback_url)
+        print(f"Manual test result: {manual_test}")
