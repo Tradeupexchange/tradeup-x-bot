@@ -1,17 +1,16 @@
 """
 Google Sheets reader for TradeUp X Engager.
-Reads tweet data from public Google Sheets for reply generation.
+Reads tweet data directly from Google Sheets using Google Sheets API.
 Modified to read from LAST entries first (most recent tweets).
-Enhanced with Google Drive API to automatically find the most recent sheet.
+Uses Google Drive API to automatically find the most recent sheet.
 """
 
-import requests
 import logging
 import re
-import csv
 import random
 import os
-from io import StringIO
+import json
+import tempfile
 from typing import List, Dict, Optional
 from datetime import datetime
 
@@ -27,56 +26,86 @@ except ImportError:
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Configuration
-SERVICE_ACCOUNT_FILE = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE', 'service-account-key.json')
-DRIVE_FOLDER_ID = os.getenv('GOOGLE_DRIVE_FOLDER_ID', '')  # Set this to your folder ID
-SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+# Configuration - using your existing environment variable setup
+def get_service_account_file():
+    """Get service account file path, supporting both file path and JSON content."""
+    # Method 1: JSON content as environment variable (for Railway deployment)
+    json_content = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE')
+    if json_content:
+        try:
+            parsed_json = json.loads(json_content)
+            # Create temporary file for the session
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                json.dump(parsed_json, f)
+                return f.name
+        except json.JSONDecodeError:
+            logging.error("❌ Invalid JSON in GOOGLE_SERVICE_ACCOUNT_FILE")
+    
+    # Method 2: File path (for local development)
+    file_path = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE', 'service-account-key.json')
+    if os.path.exists(file_path):
+        return file_path
+    
+    return None
 
-def get_drive_service():
+SERVICE_ACCOUNT_FILE = get_service_account_file()
+DRIVE_FOLDER_ID = os.getenv('GOOGLE_DRIVE_FOLDER_ID', '')
+SCOPES = [
+    'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/spreadsheets.readonly'
+]
+
+def get_google_services():
     """
-    Create and return a Google Drive service object.
+    Create and return Google Drive and Sheets service objects.
     
     Returns:
-        Google Drive service object or None if setup fails
+        Tuple of (drive_service, sheets_service) or (None, None) if setup fails
     """
     if not GOOGLE_API_AVAILABLE:
         logging.error("Google API libraries not available. Install with: pip install google-api-python-client google-auth")
-        return None
+        return None, None
+    
+    if not SERVICE_ACCOUNT_FILE:
+        logging.error("Service account file not found")
+        logging.info("Please set GOOGLE_SERVICE_ACCOUNT_FILE or GOOGLE_SERVICE_ACCOUNT_JSON environment variable")
+        return None, None
     
     if not os.path.exists(SERVICE_ACCOUNT_FILE):
         logging.error(f"Service account file not found: {SERVICE_ACCOUNT_FILE}")
-        logging.info("Please download your service account JSON file and update the SERVICE_ACCOUNT_FILE path")
-        return None
+        return None, None
     
     try:
         credentials = service_account.Credentials.from_service_account_file(
             SERVICE_ACCOUNT_FILE, scopes=SCOPES)
         
         drive_service = build('drive', 'v3', credentials=credentials)
-        return drive_service
+        sheets_service = build('sheets', 'v4', credentials=credentials)
+        
+        return drive_service, sheets_service
     
     except Exception as e:
-        logging.error(f"Failed to create Google Drive service: {e}")
-        return None
+        logging.error(f"Failed to create Google services: {e}")
+        return None, None
 
-def get_most_recent_sheet_url(folder_id: str = None) -> Optional[str]:
+def get_most_recent_sheet_id(folder_id: str = None) -> Optional[str]:
     """
-    Get the URL of the most recently modified Google Sheet in a folder.
+    Get the ID of the most recently modified Google Sheet in a folder.
     
     Args:
         folder_id: Google Drive folder ID. If None, uses DRIVE_FOLDER_ID
         
     Returns:
-        URL of the most recent sheet or None if not found
+        Sheet ID or None if not found
     """
     if not folder_id:
         folder_id = DRIVE_FOLDER_ID
     
     if not folder_id:
-        logging.error("No folder ID provided. Set DRIVE_FOLDER_ID environment variable or pass folder_id parameter")
+        logging.error("No folder ID provided. Set GOOGLE_DRIVE_FOLDER_ID environment variable")
         return None
     
-    drive_service = get_drive_service()
+    drive_service, _ = get_google_services()
     if not drive_service:
         return None
     
@@ -89,7 +118,7 @@ def get_most_recent_sheet_url(folder_id: str = None) -> Optional[str]:
         results = drive_service.files().list(
             q=query,
             orderBy='modifiedTime desc',  # Most recently modified first
-            fields='files(id, name, modifiedTime, webViewLink)',
+            fields='files(id, name, modifiedTime)',
             pageSize=1  # Only get the most recent
         ).execute()
         
@@ -97,13 +126,13 @@ def get_most_recent_sheet_url(folder_id: str = None) -> Optional[str]:
         
         if files:
             most_recent = files[0]
-            sheet_url = f"https://docs.google.com/spreadsheets/d/{most_recent['id']}/edit"
+            sheet_id = most_recent['id']
             
             logging.info(f"✅ Found most recent sheet: {most_recent['name']}")
             logging.info(f"📅 Last modified: {most_recent['modifiedTime']}")
-            logging.info(f"🔗 Sheet URL: {sheet_url}")
+            logging.info(f"🆔 Sheet ID: {sheet_id}")
             
-            return sheet_url
+            return sheet_id
         else:
             logging.warning(f"❌ No Google Sheets found in folder {folder_id}")
             logging.info("Make sure:")
@@ -138,7 +167,7 @@ def get_all_sheets_in_folder(folder_id: str = None, max_sheets: int = 10) -> Lis
         logging.error("No folder ID provided")
         return []
     
-    drive_service = get_drive_service()
+    drive_service, _ = get_google_services()
     if not drive_service:
         return []
     
@@ -148,7 +177,7 @@ def get_all_sheets_in_folder(folder_id: str = None, max_sheets: int = 10) -> Lis
         results = drive_service.files().list(
             q=query,
             orderBy='modifiedTime desc',
-            fields='files(id, name, modifiedTime, webViewLink)',
+            fields='files(id, name, modifiedTime)',
             pageSize=max_sheets
         ).execute()
         
@@ -228,12 +257,12 @@ def extract_username_from_url(url: str) -> Optional[str]:
         return match.group(1)
     return None
 
-def get_tweets_from_sheet(sheet_url: str, max_tweets: int = 50, reverse_order: bool = True) -> List[Dict]:
+def get_tweets_from_sheet(sheet_id: str, max_tweets: int = 50, reverse_order: bool = True) -> List[Dict]:
     """
-    Get tweets from a public Google Sheet using direct CSV export.
+    Get tweets from a Google Sheet using Google Sheets API directly.
     
     Args:
-        sheet_url: URL of the Google Sheet
+        sheet_id: Google Sheet ID
         max_tweets: Maximum number of tweets to read
         reverse_order: If True, reads from last entries first (most recent)
         
@@ -243,33 +272,97 @@ def get_tweets_from_sheet(sheet_url: str, max_tweets: int = 50, reverse_order: b
     tweets = []
     
     try:
-        # Extract sheet ID from URL
-        sheet_id = extract_sheet_id(sheet_url)
-        if not sheet_id:
-            logging.error(f"Could not extract sheet ID from URL: {sheet_url}")
+        _, sheets_service = get_google_services()
+        if not sheets_service:
             return tweets
-            
-        # Construct CSV export URL
-        csv_export_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
         
         logging.info(f"📊 Fetching data from Google Sheet: {sheet_id}")
         if reverse_order:
             logging.info(f"🔄 Reading from LAST entries first (most recent tweets)")
         
-        # Fetch CSV data
-        response = requests.get(csv_export_url, timeout=10)
-        response.raise_for_status()
+        # Get sheet metadata to find the range
+        sheet_metadata = sheets_service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        sheets = sheet_metadata.get('sheets', [])
         
-        # Parse CSV data
-        csv_data = StringIO(response.text)
-        reader = csv.reader(csv_data)
-        
-        # Extract header row
-        headers = next(reader, None)
-        if not headers:
-            logging.warning("Sheet is empty or has no headers")
+        if not sheets:
+            logging.warning("No worksheets found in spreadsheet")
             return tweets
+        
+        # Use the first worksheet
+        worksheet = sheets[0]
+        sheet_title = worksheet['properties']['title']
+        
+        if reverse_order:
+            # First, get headers from the top
+            header_range = f"{sheet_title}!1:1"
+            header_result = sheets_service.spreadsheets().values().get(
+                spreadsheetId=sheet_id,
+                range=header_range
+            ).execute()
             
+            header_values = header_result.get('values', [])
+            if not header_values:
+                logging.warning("Sheet has no headers")
+                return tweets
+            
+            headers = header_values[0]
+            
+            # Then get all data to find the actual last row with data
+            all_data_range = f"{sheet_title}!A:Z"
+            all_result = sheets_service.spreadsheets().values().get(
+                spreadsheetId=sheet_id,
+                range=all_data_range
+            ).execute()
+            
+            all_values = all_result.get('values', [])
+            if len(all_values) <= 1:  # Only headers or empty
+                logging.warning("Sheet has no data rows")
+                return tweets
+            
+            # Find the last row with actual data
+            last_row_with_data = len(all_values)
+            for i in range(len(all_values) - 1, 0, -1):  # Start from end, skip header
+                if any(cell.strip() for cell in all_values[i] if cell):
+                    last_row_with_data = i + 1  # +1 because sheets are 1-indexed
+                    break
+            
+            logging.info(f"📊 Last row with data: {last_row_with_data}")
+            
+            # Now read from bottom up, but limit to max_tweets + some buffer
+            start_row = max(2, last_row_with_data - max_tweets * 2)  # Start higher up to get enough data
+            range_name = f"{sheet_title}!A{start_row}:{chr(ord('A') + len(headers) - 1)}{last_row_with_data}"
+            
+            logging.info(f"🔄 Reading from bottom up: {range_name}")
+            
+        else:
+            # Read normally from top
+            range_name = f"{sheet_title}!A:Z"
+            
+            # Get headers first
+            header_result = sheets_service.spreadsheets().values().get(
+                spreadsheetId=sheet_id,
+                range=f"{sheet_title}!1:1"
+            ).execute()
+            
+            header_values = header_result.get('values', [])
+            if not header_values:
+                logging.warning("Sheet has no headers")
+                return tweets
+            
+            headers = header_values[0]
+        
+        # Get the actual data
+        result = sheets_service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range=range_name
+        ).execute()
+        
+        values = result.get('values', [])
+        
+        if not values:
+            logging.warning("Sheet is empty")
+            return tweets
+        
         # Clean headers (remove whitespace)
         headers = [header.strip() for header in headers]
         logging.info(f"📋 Sheet headers: {headers}")
@@ -294,29 +387,43 @@ def get_tweets_from_sheet(sheet_url: str, max_tweets: int = 50, reverse_order: b
         
         logging.info(f"🎯 Using columns - Tweet: {tweet_idx}, Date: {date_idx}, Username: {username_idx}, URL: {url_idx}")
         
-        # Read ALL data rows first
-        all_rows = []
-        for row_num, row in enumerate(reader, start=2):  # Start at 2 since we already read headers
-            if len(row) <= tweet_idx or not row[tweet_idx].strip():
-                logging.debug(f"Skipping row {row_num}: insufficient columns or empty tweet")
-                continue
-            
-            all_rows.append((row_num, row))
-        
-        logging.info(f"📊 Found {len(all_rows)} valid rows in sheet")
-        
-        # REVERSE the order if requested (most recent first)
+        # Process data rows 
         if reverse_order:
-            all_rows = list(reversed(all_rows))
-            logging.info(f"🔄 Reversed order - now processing from most recent entries")
+            # For reverse order, we already got the bottom portion
+            data_rows = values  # These are already the bottom rows
+            # Process in reverse order (newest first)
+            data_rows = list(reversed(data_rows))
+            start_row_num = last_row_with_data - len(data_rows) + 1
+        else:
+            # For normal order, skip header row
+            data_rows = values[1:] if len(values) > 1 else []
+            start_row_num = 2
+        
+        # Filter out empty rows
+        valid_rows = []
+        for i, row in enumerate(data_rows):
+            row_num = start_row_num + (len(data_rows) - 1 - i if reverse_order else i)
+            # Ensure row has enough columns and tweet content exists
+            if len(row) > tweet_idx and tweet_idx < len(row) and row[tweet_idx].strip():
+                valid_rows.append((row_num, row))
+            else:
+                logging.debug(f"Skipping row {row_num}: insufficient columns or empty tweet")
+        
+        logging.info(f"📊 Found {len(valid_rows)} valid rows in sheet")
+        
+        if reverse_order:
+            logging.info(f"🔄 Reading from bottom up - processing most recent entries first")
         
         # Process the rows (now in the desired order)
         count = 0
-        for row_num, row in all_rows:
+        for row_num, row in valid_rows:
             if count >= max_tweets:
                 break
-                
-            tweet_content = row[tweet_idx].strip()
+            
+            # Safely get tweet content
+            tweet_content = row[tweet_idx].strip() if tweet_idx < len(row) else ""
+            if not tweet_content:
+                continue
             
             # Create tweet data in FastAPI-compatible format
             tweet_data = {
@@ -326,10 +433,10 @@ def get_tweets_from_sheet(sheet_url: str, max_tweets: int = 50, reverse_order: b
             }
             
             # Add optional fields if available
-            if date_idx is not None and len(row) > date_idx and row[date_idx].strip():
+            if date_idx is not None and date_idx < len(row) and row[date_idx].strip():
                 tweet_data["created_at"] = row[date_idx].strip()
                 
-            if url_idx is not None and len(row) > url_idx and row[url_idx].strip():
+            if url_idx is not None and url_idx < len(row) and row[url_idx].strip():
                 url = row[url_idx].strip()
                 tweet_data["url"] = url
                 
@@ -346,7 +453,7 @@ def get_tweets_from_sheet(sheet_url: str, max_tweets: int = 50, reverse_order: b
                     tweet_data["author_name"] = username.title()  # Capitalize for display
             
             # Use username from dedicated column if available and not already set
-            if username_idx is not None and len(row) > username_idx and row[username_idx].strip():
+            if username_idx is not None and username_idx < len(row) and row[username_idx].strip():
                 username = row[username_idx].strip()
                 tweet_data["author"] = username.replace('@', '')  # Remove @ if present
                 tweet_data["author_name"] = username.replace('@', '').title()
@@ -366,12 +473,29 @@ def get_tweets_from_sheet(sheet_url: str, max_tweets: int = 50, reverse_order: b
         else:
             logging.info(f"✅ Successfully read {len(tweets)} tweets from Google Sheet (chronological order)")
         
-    except requests.exceptions.RequestException as e:
-        logging.error(f"❌ Network error reading Google Sheet: {e}")
     except Exception as e:
         logging.error(f"❌ Error reading Google Sheet: {e}")
     
     return tweets
+
+def get_tweets_from_sheet_by_url(sheet_url: str, max_tweets: int = 50, reverse_order: bool = True) -> List[Dict]:
+    """
+    Get tweets from a Google Sheet using a URL.
+    
+    Args:
+        sheet_url: URL of the Google Sheet
+        max_tweets: Maximum number of tweets to read
+        reverse_order: If True, reads from last entries first (most recent)
+        
+    Returns:
+        List of tweet data dictionaries
+    """
+    sheet_id = extract_sheet_id(sheet_url)
+    if not sheet_id:
+        logging.error(f"Could not extract sheet ID from URL: {sheet_url}")
+        return []
+    
+    return get_tweets_from_sheet(sheet_id, max_tweets, reverse_order)
 
 def get_tweets_from_most_recent_sheet(folder_id: str = None, max_tweets: int = 50, reverse_order: bool = True) -> List[Dict]:
     """
@@ -385,15 +509,15 @@ def get_tweets_from_most_recent_sheet(folder_id: str = None, max_tweets: int = 5
     Returns:
         List of tweet data dictionaries
     """
-    # Get the most recent sheet URL
-    sheet_url = get_most_recent_sheet_url(folder_id)
+    # Get the most recent sheet ID
+    sheet_id = get_most_recent_sheet_id(folder_id)
     
-    if not sheet_url:
+    if not sheet_id:
         logging.error("❌ Could not find most recent sheet")
         return []
     
     # Use existing function to read tweets from the sheet
-    return get_tweets_from_sheet(sheet_url, max_tweets, reverse_order)
+    return get_tweets_from_sheet(sheet_id, max_tweets, reverse_order)
 
 def get_tweets_for_reply(sheet_url: str = None, folder_id: str = None, num_tweets: int = 5, reverse_order: bool = True) -> List[Dict]:
     """
@@ -409,15 +533,11 @@ def get_tweets_for_reply(sheet_url: str = None, folder_id: str = None, num_tweet
     Returns:
         List of tweet data dictionaries with URLs in FastAPI format
     """
-    # If no sheet_url provided, try to get the most recent sheet from folder
-    if not sheet_url:
-        sheet_url = get_most_recent_sheet_url(folder_id)
-        if not sheet_url:
-            logging.error("❌ No sheet URL provided and could not find most recent sheet")
-            return []
-    
-    # Get all tweets from the sheet (with reverse order)
-    all_tweets = get_tweets_from_sheet(sheet_url, max_tweets=100, reverse_order=reverse_order)
+    # Get tweets either from specific sheet or most recent sheet
+    if sheet_url:
+        all_tweets = get_tweets_from_sheet_by_url(sheet_url, max_tweets=100, reverse_order=reverse_order)
+    else:
+        all_tweets = get_tweets_from_most_recent_sheet(folder_id, max_tweets=100, reverse_order=reverse_order)
     
     if not all_tweets:
         logging.warning("⚠️ No tweets found in the sheet")
@@ -462,32 +582,6 @@ def get_tweets_for_reply(sheet_url: str = None, folder_id: str = None, num_tweet
     
     return selected_tweets
 
-def get_tweets_from_sheet_chronological(sheet_url: str, max_tweets: int = 50) -> List[Dict]:
-    """
-    Convenience function to get tweets in chronological order (oldest first).
-    
-    Args:
-        sheet_url: URL of the Google Sheet
-        max_tweets: Maximum number of tweets to read
-        
-    Returns:
-        List of tweet data dictionaries in chronological order
-    """
-    return get_tweets_from_sheet(sheet_url, max_tweets, reverse_order=False)
-
-def get_tweets_from_sheet_recent_first(sheet_url: str, max_tweets: int = 50) -> List[Dict]:
-    """
-    Convenience function to get tweets with most recent first.
-    
-    Args:
-        sheet_url: URL of the Google Sheet
-        max_tweets: Maximum number of tweets to read
-        
-    Returns:
-        List of tweet data dictionaries with most recent first
-    """
-    return get_tweets_from_sheet(sheet_url, max_tweets, reverse_order=True)
-
 def test_sheet_connection(sheet_url: str) -> Dict:
     """
     Test the connection to a Google Sheet and return status info.
@@ -500,7 +594,7 @@ def test_sheet_connection(sheet_url: str) -> Dict:
     """
     try:
         # Test with reverse order (most recent first)
-        tweets = get_tweets_from_sheet(sheet_url, max_tweets=5, reverse_order=True)
+        tweets = get_tweets_from_sheet_by_url(sheet_url, max_tweets=5, reverse_order=True)
         
         result = {
             "success": True,
@@ -540,19 +634,19 @@ def test_drive_connection(folder_id: str = None) -> Dict:
         if not folder_id:
             return {
                 "success": False,
-                "message": "No folder ID provided. Set DRIVE_FOLDER_ID environment variable."
+                "message": "No folder ID provided. Set GOOGLE_DRIVE_FOLDER_ID environment variable."
             }
         
         # Test getting all sheets in folder
         sheets = get_all_sheets_in_folder(folder_id, max_sheets=5)
         
         if sheets:
-            most_recent_url = get_most_recent_sheet_url(folder_id)
+            most_recent_id = get_most_recent_sheet_id(folder_id)
             result = {
                 "success": True,
                 "sheets_found": len(sheets),
                 "most_recent_sheet": sheets[0]['name'] if sheets else None,
-                "most_recent_url": most_recent_url,
+                "most_recent_id": most_recent_id,
                 "message": f"Successfully connected to Google Drive. Found {len(sheets)} sheets in folder."
             }
         else:
@@ -574,7 +668,7 @@ def test_drive_connection(folder_id: str = None) -> Dict:
 if __name__ == "__main__":
     # Example usage and testing
     
-    print("🧪 Testing Google Drive API connection...")
+    print("🧪 Testing Google Drive and Sheets API connection...")
     
     # Test 1: Drive connection
     drive_test = test_drive_connection()
@@ -611,12 +705,6 @@ if __name__ == "__main__":
         print(f"❌ Drive connection failed: {drive_test['message']}")
         print("\n📋 Setup checklist:")
         print("1. Install Google API libraries: pip install google-api-python-client google-auth")
-        print("2. Set SERVICE_ACCOUNT_FILE environment variable or place 'service-account-key.json' in current directory")
-        print("3. Set DRIVE_FOLDER_ID environment variable to your Google Drive folder ID")
+        print("2. Set GOOGLE_SERVICE_ACCOUNT_FILE or GOOGLE_SERVICE_ACCOUNT_JSON environment variable")
+        print("3. Set GOOGLE_DRIVE_FOLDER_ID environment variable to your Google Drive folder ID")
         print("4. Share the folder with your service account email")
-        
-        # Fallback: Test with manual sheet URL if provided
-        fallback_url = "https://docs.google.com/spreadsheets/d/1U50KjbsYUswh0IGWTPgeP97Y2kXRcYM_H1VoeyAQhpw/edit?gid=0#gid=0"
-        print(f"\n🔄 Falling back to manual sheet URL test...")
-        manual_test = test_sheet_connection(fallback_url)
-        print(f"Manual test result: {manual_test}")
