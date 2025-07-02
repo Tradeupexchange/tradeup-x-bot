@@ -276,7 +276,7 @@ def get_tweets_from_sheet(sheet_id: str, max_tweets: int = 50, reverse_order: bo
         if not sheets_service:
             return tweets
         
-        logging.info(f"📊 Fetching data from Google Sheet: {sheet_id}")
+        logging.info(f"📊 Fetching data from Google Sheet ID: {sheet_id}")
         if reverse_order:
             logging.info(f"🔄 Reading from LAST entries first (most recent tweets)")
         
@@ -292,76 +292,19 @@ def get_tweets_from_sheet(sheet_id: str, max_tweets: int = 50, reverse_order: bo
         worksheet = sheets[0]
         sheet_title = worksheet['properties']['title']
         
-        if reverse_order:
-            # First, get headers from the top
-            header_range = f"{sheet_title}!1:1"
-            header_result = sheets_service.spreadsheets().values().get(
-                spreadsheetId=sheet_id,
-                range=header_range
-            ).execute()
-            
-            header_values = header_result.get('values', [])
-            if not header_values:
-                logging.warning("Sheet has no headers")
-                return tweets
-            
-            headers = header_values[0]
-            
-            # Then get all data to find the actual last row with data
-            all_data_range = f"{sheet_title}!A:Z"
-            all_result = sheets_service.spreadsheets().values().get(
-                spreadsheetId=sheet_id,
-                range=all_data_range
-            ).execute()
-            
-            all_values = all_result.get('values', [])
-            if len(all_values) <= 1:  # Only headers or empty
-                logging.warning("Sheet has no data rows")
-                return tweets
-            
-            # Find the last row with actual data
-            last_row_with_data = len(all_values)
-            for i in range(len(all_values) - 1, 0, -1):  # Start from end, skip header
-                if any(cell.strip() for cell in all_values[i] if cell):
-                    last_row_with_data = i + 1  # +1 because sheets are 1-indexed
-                    break
-            
-            logging.info(f"📊 Last row with data: {last_row_with_data}")
-            
-            # Now read from bottom up, but limit to max_tweets + some buffer
-            start_row = max(2, last_row_with_data - max_tweets * 2)  # Start higher up to get enough data
-            range_name = f"{sheet_title}!A{start_row}:{chr(ord('A') + len(headers) - 1)}{last_row_with_data}"
-            
-            logging.info(f"🔄 Reading from bottom up: {range_name}")
-            
-        else:
-            # Read normally from top
-            range_name = f"{sheet_title}!A:Z"
-            
-            # Get headers first
-            header_result = sheets_service.spreadsheets().values().get(
-                spreadsheetId=sheet_id,
-                range=f"{sheet_title}!1:1"
-            ).execute()
-            
-            header_values = header_result.get('values', [])
-            if not header_values:
-                logging.warning("Sheet has no headers")
-                return tweets
-            
-            headers = header_values[0]
-        
-        # Get the actual data
-        result = sheets_service.spreadsheets().values().get(
+        # First, always get headers from row 1
+        header_range = f"{sheet_title}!1:1"
+        header_result = sheets_service.spreadsheets().values().get(
             spreadsheetId=sheet_id,
-            range=range_name
+            range=header_range
         ).execute()
         
-        values = result.get('values', [])
-        
-        if not values:
-            logging.warning("Sheet is empty")
+        header_values = header_result.get('values', [])
+        if not header_values:
+            logging.warning("Sheet has no headers")
             return tweets
+        
+        headers = header_values[0]
         
         # Clean headers (remove whitespace)
         headers = [header.strip() for header in headers]
@@ -387,91 +330,162 @@ def get_tweets_from_sheet(sheet_id: str, max_tweets: int = 50, reverse_order: bo
         
         logging.info(f"🎯 Using columns - Tweet: {tweet_idx}, Date: {date_idx}, Username: {username_idx}, URL: {url_idx}")
         
-        # Process data rows 
         if reverse_order:
-            # For reverse order, we already got the bottom portion
-            data_rows = values  # These are already the bottom rows
-            # Process in reverse order (newest first)
-            data_rows = list(reversed(data_rows))
-            start_row_num = last_row_with_data - len(data_rows) + 1
-        else:
-            # For normal order, skip header row
-            data_rows = values[1:] if len(values) > 1 else []
-            start_row_num = 2
-        
-        # Filter out empty rows
-        valid_rows = []
-        for i, row in enumerate(data_rows):
-            row_num = start_row_num + (len(data_rows) - 1 - i if reverse_order else i)
-            # Ensure row has enough columns and tweet content exists
-            if len(row) > tweet_idx and tweet_idx < len(row) and row[tweet_idx].strip():
-                valid_rows.append((row_num, row))
-            else:
-                logging.debug(f"Skipping row {row_num}: insufficient columns or empty tweet")
-        
-        logging.info(f"📊 Found {len(valid_rows)} valid rows in sheet")
-        
-        if reverse_order:
-            logging.info(f"🔄 Reading from bottom up - processing most recent entries first")
-        
-        # Process the rows (now in the desired order)
-        count = 0
-        for row_num, row in valid_rows:
-            if count >= max_tweets:
-                break
+            # Find the actual last row with data by getting sheet properties
+            sheet_properties = worksheet.get('properties', {})
+            grid_properties = sheet_properties.get('gridProperties', {})
+            total_rows = grid_properties.get('rowCount', 1000)
             
-            # Safely get tweet content
-            tweet_content = row[tweet_idx].strip() if tweet_idx < len(row) else ""
-            if not tweet_content:
-                continue
+            logging.info(f"📊 Sheet has {total_rows} total rows")
             
-            # Create tweet data in FastAPI-compatible format
-            tweet_data = {
-                "id": f"sheet_tweet_{count + 1}",  # Generate ID for tweets without one
-                "text": tweet_content,
-                "created_at": datetime.now().isoformat(),  # Default to now
-            }
+            # Start from the bottom and work our way up, row by row
+            collected_tweets = []
+            current_row = total_rows
             
-            # Add optional fields if available
-            if date_idx is not None and date_idx < len(row) and row[date_idx].strip():
-                tweet_data["created_at"] = row[date_idx].strip()
+            while len(collected_tweets) < max_tweets and current_row > 1:  # Skip header row
+                # Read current row
+                row_range = f"{sheet_title}!A{current_row}:{chr(ord('A') + len(headers) - 1)}{current_row}"
                 
-            if url_idx is not None and url_idx < len(row) and row[url_idx].strip():
-                url = row[url_idx].strip()
-                tweet_data["url"] = url
-                
-                # Extract tweet ID and username from URL
-                tweet_id = extract_tweet_id_from_url(url)
-                username = extract_username_from_url(url)
-                
-                if tweet_id:
-                    tweet_data["id"] = tweet_id
-                    tweet_data["conversation_id"] = tweet_id
+                try:
+                    row_result = sheets_service.spreadsheets().values().get(
+                        spreadsheetId=sheet_id,
+                        range=row_range
+                    ).execute()
                     
-                if username:
-                    tweet_data["author"] = username
-                    tweet_data["author_name"] = username.title()  # Capitalize for display
+                    row_values = row_result.get('values', [])
+                    
+                    if row_values and len(row_values) > 0:
+                        row = row_values[0]
+                        
+                        # Check if this row has tweet content
+                        if (len(row) > tweet_idx and 
+                            tweet_idx < len(row) and 
+                            row[tweet_idx].strip()):
+                            
+                            tweet_content = row[tweet_idx].strip()
+                            
+                            # Create tweet data
+                            tweet_data = {
+                                "id": f"sheet_tweet_{len(collected_tweets) + 1}",
+                                "text": tweet_content,
+                                "created_at": datetime.now().isoformat(),
+                            }
+                            
+                            # Add optional fields if available
+                            if date_idx is not None and date_idx < len(row) and row[date_idx].strip():
+                                tweet_data["created_at"] = row[date_idx].strip()
+                                
+                            if url_idx is not None and url_idx < len(row) and row[url_idx].strip():
+                                url = row[url_idx].strip()
+                                tweet_data["url"] = url
+                                
+                                # Extract tweet ID and username from URL
+                                tweet_id = extract_tweet_id_from_url(url)
+                                username = extract_username_from_url(url)
+                                
+                                if tweet_id:
+                                    tweet_data["id"] = tweet_id
+                                    tweet_data["conversation_id"] = tweet_id
+                                    
+                                if username:
+                                    tweet_data["author"] = username
+                                    tweet_data["author_name"] = username.title()
+                            
+                            # Use username from dedicated column if available
+                            if username_idx is not None and username_idx < len(row) and row[username_idx].strip():
+                                username = row[username_idx].strip()
+                                tweet_data["author"] = username.replace('@', '')
+                                tweet_data["author_name"] = username.replace('@', '').title()
+                            
+                            # Ensure we have at least basic author info
+                            if "author" not in tweet_data:
+                                tweet_data["author"] = "unknown_user"
+                                tweet_data["author_name"] = "Unknown User"
+                            
+                            collected_tweets.append(tweet_data)
+                            logging.debug(f"✅ Found tweet at row {current_row}: {tweet_content[:50]}...")
+                    
+                except Exception as e:
+                    logging.debug(f"Error reading row {current_row}: {e}")
+                
+                current_row -= 1
             
-            # Use username from dedicated column if available and not already set
-            if username_idx is not None and username_idx < len(row) and row[username_idx].strip():
-                username = row[username_idx].strip()
-                tweet_data["author"] = username.replace('@', '')  # Remove @ if present
-                tweet_data["author_name"] = username.replace('@', '').title()
+            tweets = collected_tweets
+            logging.info(f"🔄 Read from bottom up - collected {len(tweets)} tweets from most recent entries")
             
-            # Ensure we have at least basic author info
-            if "author" not in tweet_data:
-                tweet_data["author"] = "unknown_user"
-                tweet_data["author_name"] = "Unknown User"
+        else:
+            # Read normally from top (original logic)
+            all_data_range = f"{sheet_title}!A2:Z"  # Skip header row
+            result = sheets_service.spreadsheets().values().get(
+                spreadsheetId=sheet_id,
+                range=all_data_range
+            ).execute()
             
-            tweets.append(tweet_data)
-            count += 1
+            values = result.get('values', [])
             
-            logging.debug(f"✅ Processed tweet {count}: {tweet_content[:50]}...")
+            if not values:
+                logging.warning("Sheet has no data rows")
+                return tweets
+            
+            # Process rows normally (top to bottom)
+            count = 0
+            for row_num, row in enumerate(values, start=2):
+                if count >= max_tweets:
+                    break
+                
+                if (len(row) > tweet_idx and 
+                    tweet_idx < len(row) and 
+                    row[tweet_idx].strip()):
+                    
+                    tweet_content = row[tweet_idx].strip()
+                    
+                    # Create tweet data
+                    tweet_data = {
+                        "id": f"sheet_tweet_{count + 1}",
+                        "text": tweet_content,
+                        "created_at": datetime.now().isoformat(),
+                    }
+                    
+                    # Add optional fields if available
+                    if date_idx is not None and date_idx < len(row) and row[date_idx].strip():
+                        tweet_data["created_at"] = row[date_idx].strip()
+                        
+                    if url_idx is not None and url_idx < len(row) and row[url_idx].strip():
+                        url = row[url_idx].strip()
+                        tweet_data["url"] = url
+                        
+                        # Extract tweet ID and username from URL
+                        tweet_id = extract_tweet_id_from_url(url)
+                        username = extract_username_from_url(url)
+                        
+                        if tweet_id:
+                            tweet_data["id"] = tweet_id
+                            tweet_data["conversation_id"] = tweet_id
+                            
+                        if username:
+                            tweet_data["author"] = username
+                            tweet_data["author_name"] = username.title()
+                    
+                    # Use username from dedicated column if available
+                    if username_idx is not None and username_idx < len(row) and row[username_idx].strip():
+                        username = row[username_idx].strip()
+                        tweet_data["author"] = username.replace('@', '')
+                        tweet_data["author_name"] = username.replace('@', '').title()
+                    
+                    # Ensure we have at least basic author info
+                    if "author" not in tweet_data:
+                        tweet_data["author"] = "unknown_user"
+                        tweet_data["author_name"] = "Unknown User"
+                    
+                    tweets.append(tweet_data)
+                    count += 1
+            
+            logging.info(f"📊 Found {len(tweets)} valid tweets in sheet (chronological order)")
         
         if reverse_order:
-            logging.info(f"✅ Successfully read {len(tweets)} tweets from Google Sheet (most recent first)")
+            logging.info(f"✅ Successfully read {len(tweets)} tweets from Google Sheet (most recent first - bottom to top)")
         else:
-            logging.info(f"✅ Successfully read {len(tweets)} tweets from Google Sheet (chronological order)")
+            logging.info(f"✅ Successfully read {len(tweets)} tweets from Google Sheet (chronological order - top to bottom)")
         
     except Exception as e:
         logging.error(f"❌ Error reading Google Sheet: {e}")
