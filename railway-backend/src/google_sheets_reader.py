@@ -30,7 +30,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 def get_service_account_file():
     """Get service account file path, supporting both file path and JSON content."""
     # Method 1: JSON content as environment variable (for Railway deployment)
-    json_content = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE')
+    json_content = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
     if json_content:
         try:
             parsed_json = json.loads(json_content)
@@ -39,7 +39,7 @@ def get_service_account_file():
                 json.dump(parsed_json, f)
                 return f.name
         except json.JSONDecodeError:
-            logging.error("❌ Invalid JSON in GOOGLE_SERVICE_ACCOUNT_FILE")
+            logging.error("❌ Invalid JSON in GOOGLE_SERVICE_ACCOUNT_JSON")
     
     # Method 2: File path (for local development)
     file_path = os.getenv('GOOGLE_SERVICE_ACCOUNT_FILE', 'service-account-key.json')
