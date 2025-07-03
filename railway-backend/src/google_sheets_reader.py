@@ -310,51 +310,27 @@ def get_tweets_from_sheet(sheet_id: str, max_tweets: int = 50, reverse_order: bo
         headers = [header.strip() for header in headers]
         logging.info(f"📋 Sheet headers: {headers}")
         
-        # Find the indices of important columns (case-insensitive)
-        header_map = {header.lower(): i for i, header in enumerate(headers)}
+        # ✅ HARDCODED COLUMN MAPPING (0-indexed)
+        # Column 1 (index 0) = Date
+        # Column 2 (index 1) = @username  
+        # Column 3 (index 2) = Tweet content
+        # Column 4 (index 3) = URL to tweet
+        # Column 5 (index 4) = Something else (ignored)
+        # Column 6 (index 5) = Image (ignored)
+        # Column 7 (index 6) = Tweet block (ignored)
         
-        # Try different variations of column names
-        tweet_idx = None
-        for possible_name in ['tweet', 'tweet_content', 'content', 'text']:
-            if possible_name in header_map:
-                tweet_idx = header_map[possible_name]
-                break
+        date_idx = 0      # Column 1: Date
+        username_idx = 1  # Column 2: @username
+        tweet_idx = 2     # Column 3: Tweet content  
+        url_idx = 3       # Column 4: URL to tweet
         
-        # If no standard tweet column found, try to detect by content pattern
-        if tweet_idx is None:
-            for i, header in enumerate(headers):
-                header_lower = header.lower()
-                # Look for columns that contain tweet-like content (starting with @, RT, or contain "pokemon")
-                if any(keyword in header_lower for keyword in ['rt @', '@', 'pokemon', 'giving away', 'collab']):
-                    tweet_idx = i
-                    logging.info(f"🔍 Detected tweet column by content pattern: {header}")
-                    break
+        logging.info(f"🎯 Using HARDCODED columns - Date: {date_idx}, Username: {username_idx}, Tweet: {tweet_idx}, URL: {url_idx}")
         
-        date_idx = header_map.get('date') or header_map.get('created_at')
-        username_idx = header_map.get('username') or header_map.get('user') or header_map.get('author')
-        url_idx = header_map.get('url') or header_map.get('link') or header_map.get('tweet_url')
-        
-        # If no standard username column, try to detect by pattern
-        if username_idx is None:
-            for i, header in enumerate(headers):
-                if header.startswith('@'):
-                    username_idx = i
-                    logging.info(f"🔍 Detected username column by @ pattern: {header}")
-                    break
-        
-        # If no standard URL column, try to detect by pattern  
-        if url_idx is None:
-            for i, header in enumerate(headers):
-                if 'twitter.com' in header.lower() or 'https://' in header:
-                    url_idx = i
-                    logging.info(f"🔍 Detected URL column by pattern: {header}")
-                    break
-        
-        if tweet_idx is None:
-            logging.error(f"Tweet column not found. Available columns: {list(header_map.keys())}")
+        # Validate that we have enough columns
+        min_required_columns = 4  # We need at least 4 columns
+        if len(headers) < min_required_columns:
+            logging.error(f"Sheet must have at least {min_required_columns} columns. Found {len(headers)} columns.")
             return tweets
-        
-        logging.info(f"🎯 Using columns - Tweet: {tweet_idx}, Date: {date_idx}, Username: {username_idx}, URL: {url_idx}")
         
         if reverse_order:
             # Find the actual last row with data by getting sheet properties
