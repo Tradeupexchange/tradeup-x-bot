@@ -32,10 +32,11 @@ from src.config import (
 )
 
 try:
-    from src.google_sheets_reader import get_tweets_for_reply
+    from src.google_sheets_reader import get_tweets_for_reply, get_tweets_from_most_recent_sheet
 except ImportError:
     print("Warning: google_sheets_reader not found. Google Sheets functionality will be limited.")
     get_tweets_for_reply = None
+    get_tweets_from_most_recent_sheet = None
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -45,9 +46,6 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Global variable to track last post time for rate limiting
 last_post_time = None
-
-# Google Sheet URL containing tweet examples
-TWEETS_SHEET_URL = "https://docs.google.com/spreadsheets/d/1U50KjbsYUswh0IGWTPgeP97Y2kXRcYM_H1VoeyAQhpw/edit?gid=0#gid=0"
 
 def post_original_tweet(content: str) -> Dict[str, Any]:
     """
@@ -334,7 +332,7 @@ def get_user_confirmation(tweet: Dict[str, Any], reply: str) -> tuple[bool, str]
     """
     print("\n" + "="*60)
     print("ORIGINAL TWEET:")
-    print(f"@{tweet.get('username', 'Unknown')}: {tweet.get('tweet_content', '')}")
+    print(f"@{tweet.get('author', 'Unknown')}: {tweet.get('text', '')}")
     print(f"URL: {tweet.get('url', 'No URL available')}")
     print("-"*60)
     print("GENERATED REPLY:")
@@ -358,6 +356,36 @@ def get_user_confirmation(tweet: Dict[str, Any], reply: str) -> tuple[bool, str]
         else:
             print("Please enter 'y' to confirm, 'n' to skip, or 'edit' to modify the reply.")
 
+def fetch_tweets_from_sheets() -> List[Dict[str, Any]]:
+    """
+    Fetch tweets from the most recent Google Sheet automatically.
+    
+    Returns:
+        List of tweet data dictionaries
+    """
+    if get_tweets_from_most_recent_sheet is None:
+        logging.error("Google Sheets reader not available. Cannot fetch tweets.")
+        return []
+    
+    try:
+        logging.info("📊 Starting fetch tweets from sheets...")
+        logging.info("📊 Fetching tweets from Google Sheets...")
+        
+        # Use automatic detection - finds most recent sheet and reads from bottom up
+        tweets = get_tweets_from_most_recent_sheet(max_tweets=50, reverse_order=True)
+        
+        if tweets:
+            logging.info(f"✅ Successfully fetched {len(tweets)} tweets from most recent sheet")
+            return tweets
+        else:
+            logging.warning("📊 No tweets found in Google Sheets, falling back to mock data")
+            return []
+            
+    except Exception as e:
+        logging.error(f"❌ Error fetching tweets from sheets: {e}")
+        logging.warning("📊 Falling back to mock data")
+        return []
+
 def generate_and_post_replies(num_replies: int = 5, post_to_twitter: bool = False, require_confirmation: bool = True) -> List[Dict[str, Any]]:
     """
     Generate and optionally post replies to tweets from the Google Sheet.
@@ -374,8 +402,8 @@ def generate_and_post_replies(num_replies: int = 5, post_to_twitter: bool = Fals
         logging.error("Google Sheets reader not available. Cannot fetch tweets.")
         return []
     
-    # Get tweets to reply to
-    tweets_to_reply = get_tweets_for_reply(TWEETS_SHEET_URL, num_replies)
+    # Get tweets to reply to using automatic detection
+    tweets_to_reply = get_tweets_for_reply(num_tweets=num_replies, reverse_order=True)
     
     if not tweets_to_reply:
         logging.warning("No tweets found to reply to")
@@ -384,13 +412,13 @@ def generate_and_post_replies(num_replies: int = 5, post_to_twitter: bool = Fals
     results = []
     
     for tweet in tweets_to_reply:
-        tweet_content = tweet.get('tweet_content', '')
-        username = tweet.get('username', '')
-        tweet_id = tweet.get('tweet_id')
+        tweet_content = tweet.get('text', '')  # Updated field name
+        username = tweet.get('author', '')  # Updated field name
+        tweet_id = tweet.get('id')  # Updated field name
         tweet_url = tweet.get('url', '')
         
-        if not tweet_id:
-            logging.warning(f"No tweet ID found for tweet: {tweet_content[:50]}...")
+        if not tweet_id or tweet_id.startswith('sheet_tweet_'):
+            logging.warning(f"No valid tweet ID found for tweet: {tweet_content[:50]}...")
             continue
         
         # Generate reply content
@@ -491,6 +519,32 @@ def test_twitter_connection() -> Dict[str, Any]:
         return {
             'success': False,
             'error': f'Connection test failed: {str(e)}'
+        }
+
+def test_sheets_connection() -> Dict[str, Any]:
+    """
+    Test Google Sheets connection and fetch sample tweets.
+    """
+    try:
+        tweets = fetch_tweets_from_sheets()
+        
+        if tweets:
+            return {
+                'success': True,
+                'message': f'Successfully fetched {len(tweets)} tweets from most recent sheet',
+                'sample_tweets': tweets[:3],  # Return first 3 as samples
+                'total_tweets': len(tweets)
+            }
+        else:
+            return {
+                'success': False,
+                'error': 'No tweets found in sheets'
+            }
+            
+    except Exception as e:
+        return {
+            'success': False,
+            'error': f'Sheets connection test failed: {str(e)}'
         }
 
 def get_tweet_url(tweet_id: str) -> str:
