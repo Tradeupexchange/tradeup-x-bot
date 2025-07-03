@@ -1328,7 +1328,7 @@ async def generate_reply_endpoint(request: GenerateReplyRequest):
 
 @app.get("/api/fetch-tweets-from-sheets")
 async def fetch_tweets_from_sheets():
-    """Fetch tweets from Google Sheets for reply generation"""
+    """Fetch tweets from the most recent Google Sheet automatically"""
     try:
         logger.info("📊 Starting fetch tweets from sheets...")
         
@@ -1391,14 +1391,16 @@ async def fetch_tweets_from_sheets():
                 "timestamp": datetime.now().isoformat()
             }
         
-        # Try to fetch real tweets from Google Sheets
+        # Try to fetch real tweets from Google Sheets using automatic detection
         logger.info("📊 Fetching tweets from Google Sheets...")
         
-        if get_tweets_from_sheet is None:
-            logger.error("❌ get_tweets_from_sheet function is None")
+        # ✅ UPDATED: Use automatic detection instead of URL
+        if get_tweets_from_most_recent_sheet is None:
+            logger.error("❌ get_tweets_from_most_recent_sheet function is None")
             raise Exception("Google Sheets functions not properly imported")
         
-        tweets = get_tweets_from_sheet(GOOGLE_SHEETS_URL, max_tweets=50)
+        # ✅ UPDATED: Use automatic detection - finds most recent sheet and reads from bottom up
+        tweets = get_tweets_from_most_recent_sheet(max_tweets=50, reverse_order=True)
         
         if not tweets:
             logger.warning("📊 No tweets found in Google Sheets, falling back to mock data")
@@ -1423,22 +1425,38 @@ async def fetch_tweets_from_sheets():
                 "timestamp": datetime.now().isoformat()
             }
         
-        logger.info(f"✅ Successfully fetched {len(tweets)} tweets from Google Sheets")
+        logger.info(f"✅ Successfully fetched {len(tweets)} tweets from most recent Google Sheet")
         
         return {
             "success": True,
             "tweets": tweets,
             "count": len(tweets),
-            "source": "Google Sheets",
+            "source": "Google Sheets (Most Recent Sheet - Bottom to Top)",
             "timestamp": datetime.now().isoformat()
         }
         
     except Exception as e:
         logger.error(f"❌ Error fetching tweets from Google Sheets: {e}")
+        
+        # Enhanced error response with fallback mock data
+        mock_tweets = [
+            {
+                "id": "error_fallback_1",
+                "text": "Just opened a Pokemon TCG booster pack and got some amazing cards!",
+                "author": "MockUser1",
+                "author_name": "Mock User 1",
+                "created_at": datetime.now().isoformat(),
+                "url": "https://twitter.com/MockUser1/status/1234567890",
+                "conversation_id": "error_fallback_1"
+            }
+        ]
+        
         return {
             "success": False,
             "error": str(e),
-            "tweets": [],
+            "tweets": mock_tweets,  # Provide fallback tweets even on error
+            "count": len(mock_tweets),
+            "source": "Mock Data (Error Fallback)",
             "timestamp": datetime.now().isoformat()
         }
 
