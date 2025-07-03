@@ -59,7 +59,7 @@ try:
 except ImportError:
     try:
         # Fallback to current directory
-        from google_sheets_reader import get_tweets_for_reply, get_tweets_from_sheet, test_sheet_connection
+        from src.google_sheets_reader import get_tweets_from_sheet, get_tweets_from_most_recent_sheet, get_tweets_for_reply
         GOOGLE_SHEETS_AVAILABLE = True
         logger.info("✅ Google Sheets reader imported successfully from current directory")
     except ImportError as e:
