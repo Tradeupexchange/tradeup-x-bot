@@ -320,9 +320,35 @@ def get_tweets_from_sheet(sheet_id: str, max_tweets: int = 50, reverse_order: bo
                 tweet_idx = header_map[possible_name]
                 break
         
+        # If no standard tweet column found, try to detect by content pattern
+        if tweet_idx is None:
+            for i, header in enumerate(headers):
+                header_lower = header.lower()
+                # Look for columns that contain tweet-like content (starting with @, RT, or contain "pokemon")
+                if any(keyword in header_lower for keyword in ['rt @', '@', 'pokemon', 'giving away', 'collab']):
+                    tweet_idx = i
+                    logging.info(f"🔍 Detected tweet column by content pattern: {header}")
+                    break
+        
         date_idx = header_map.get('date') or header_map.get('created_at')
         username_idx = header_map.get('username') or header_map.get('user') or header_map.get('author')
         url_idx = header_map.get('url') or header_map.get('link') or header_map.get('tweet_url')
+        
+        # If no standard username column, try to detect by pattern
+        if username_idx is None:
+            for i, header in enumerate(headers):
+                if header.startswith('@'):
+                    username_idx = i
+                    logging.info(f"🔍 Detected username column by @ pattern: {header}")
+                    break
+        
+        # If no standard URL column, try to detect by pattern  
+        if url_idx is None:
+            for i, header in enumerate(headers):
+                if 'twitter.com' in header.lower() or 'https://' in header:
+                    url_idx = i
+                    logging.info(f"🔍 Detected URL column by pattern: {header}")
+                    break
         
         if tweet_idx is None:
             logging.error(f"Tweet column not found. Available columns: {list(header_map.keys())}")
