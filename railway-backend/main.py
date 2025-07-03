@@ -70,6 +70,22 @@ except Exception as e:
     logger.error(f"❌ Error importing Google Sheets reader: {e}")
     GOOGLE_SHEETS_AVAILABLE = False
 
+try:
+    from src.google_sheets_reader import *
+    import src.google_sheets_reader as gsr
+    
+    logger.info(f"🔍 Available functions in google_sheets_reader: {dir(gsr)}")
+    logger.info(f"🔍 get_tweets_from_most_recent_sheet exists: {hasattr(gsr, 'get_tweets_from_most_recent_sheet')}")
+    
+    if hasattr(gsr, 'get_tweets_from_most_recent_sheet'):
+        get_tweets_from_most_recent_sheet = gsr.get_tweets_from_most_recent_sheet
+        logger.info("✅ Successfully imported get_tweets_from_most_recent_sheet")
+    else:
+        logger.error("❌ get_tweets_from_most_recent_sheet not found in module")
+        
+except Exception as e:
+    logger.error(f"❌ Import error: {e}")
+
 #TRY TWITTER API SETUP
 try:
     # Try to import from src directory first
